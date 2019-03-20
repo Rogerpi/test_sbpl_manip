@@ -833,12 +833,12 @@ bool RobotCollisionModel::generateBoundingSpheres(
         std::vector<Eigen::Vector3d> vertices;
         std::vector<int> triangles;
         urdf::Mesh* mesh = (urdf::Mesh*)&geom;
-        if (!leatherman::getMeshComponentsFromResource(
+        /*if (!leatherman::getMeshComponentsFromResource(
                 mesh->filename, Eigen::Vector3d::Ones(), triangles, vertices))
         {
             ROS_ERROR_NAMED(RCM_LOGGER, "Failed to get mesh from file. (%s)", mesh->filename.c_str());
             return false;
-        }
+        }*/
 
         ROS_DEBUG_NAMED(RCM_LOGGER, "mesh: %s  triangles: %zu  vertices: %zu", mesh->filename.c_str(), triangles.size(), vertices.size());
 
@@ -1034,12 +1034,13 @@ bool RobotCollisionModel::voxelizeGeometry(
         std::vector<Eigen::Vector3d> vertices;
         std::vector<int> triangles;
         urdf::Mesh* mesh = (urdf::Mesh*)&geom;
-        if (!leatherman::getMeshComponentsFromResource(
+        /*if (!leatherman::getMeshComponentsFromResource(
                 mesh->filename, Eigen::Vector3d::Ones(), triangles, vertices))
         {
             ROS_ERROR_NAMED(RCM_LOGGER, "Failed to get mesh from file. (%s)", mesh->filename.c_str());
             return false;
         }
+*/
 
         ROS_DEBUG_NAMED(RCM_LOGGER, "mesh: %s  triangles: %zu  vertices: %zu", mesh->filename.c_str(), triangles.size(), vertices.size());
 

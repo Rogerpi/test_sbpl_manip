@@ -653,13 +653,14 @@ bool CollisionSpace::init(
     const std::string& group_name,
     const std::vector<std::string>& planning_joints)
 {
-    auto urdf = boost::make_shared<urdf::Model>();
-    if (!urdf->initString(urdf_string)) {
-        ROS_ERROR_NAMED(CC_LOGGER, "Failed to parse URDF");
-        return false;
-    }
+    //auto urdf = boost::make_shared<urdf::Model>();
+    //if (!urdf->initString(urdf_string)) {
+    //    ROS_ERROR_NAMED(CC_LOGGER, "Failed to parse URDF");
+    //    return false;
+   // }
 
-    return init(grid, *urdf, config, group_name, planning_joints);
+    //return init(grid, *urdf, config, group_name, planning_joints);
+
 }
 
 /// \brief Initialize the Collision Space

@@ -150,6 +150,7 @@ private:
 
 inline bool BFS_3D::inBounds(int x, int y, int z) const
 {
+    //ROS_INFO_STREAM("BOUNDS: "<<m_dim_x<<" "<<m_dim_y<<" "<<m_dim_z);
     return !(x < 0 || y < 0 || z < 0 ||
             x >= m_dim_x - 2 || y >= m_dim_y - 2 || z >= m_dim_z - 2);
 }

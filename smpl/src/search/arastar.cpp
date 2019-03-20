@@ -83,6 +83,7 @@ ARAStar::ARAStar(
     m_time_params.max_expansions = 0;
     m_time_params.max_allowed_time_init = clock::duration::zero();
     m_time_params.max_allowed_time = clock::duration::zero();
+
 }
 
 ARAStar::~ARAStar()
@@ -105,10 +106,12 @@ enum ReplanResultCode
 };
 
 int ARAStar::replan(
+
     const TimeParameters& params,
     std::vector<int>* solution,
     int* cost)
 {
+    ROS_INFO_STREAM("ARASTAR REPLAN");
     SMPL_DEBUG_NAMED(SLOG, "Find path to goal");
 
     if (m_start_state_id < 0) {
@@ -126,7 +129,7 @@ int ARAStar::replan(
     SearchState* goal_state = getSearchState(m_goal_state_id);
 
     if (m_start_state_id != m_last_start_state_id) {
-        SMPL_DEBUG_NAMED(SLOG, "Reinitialize search");
+        SMPL_WARN_NAMED(SLOG, "Reinitialize search"); //WAS DEBUG
         m_open.clear();
         m_incons.clear();
         ++m_call_number; // trigger state reinitializations
@@ -184,7 +187,11 @@ int ARAStar::replan(
             m_incons.clear();
             SMPL_WARN_NAMED(SLOG, "Begin new search iteration %d with epsilon = %0.3f", m_iteration, m_curr_eps);
         }
+        ROS_ERROR_STREAM("BEFORE IMPROVE PATH");
         err = improvePath(start_time, goal_state, num_expansions, elapsed_time);
+
+        ROS_ERROR_STREAM("AFTER IMPROVE PATH");
+        //std::getchar();
 
          SMPL_DEBUG_STREAM("improve returned with result "<<err<<" and satsfied "<<m_satisfied_eps<<",current "<<m_curr_eps);
         if (m_curr_eps == m_initial_eps) {
@@ -497,7 +504,7 @@ int ARAStar::improvePath(
 
         // path to goal found
         if (min_state->f >= goal_state->f || min_state == goal_state) {
-            SMPL_DEBUG_NAMED(SLOG, "Found path to goal");
+            SMPL_INFO_NAMED(SLOG, "Found path to goal");//DEBUG
             SMPL_DEBUG_STREAM("found path and first "<<(min_state->f >= goal_state->f)<<",second "<<(min_state == goal_state));
             return SUCCESS;
         }
@@ -541,6 +548,7 @@ void ARAStar::expand(SearchState* s)
         int cost = m_costs[sidx];
 
         SearchState* succ_state = getSearchState(succ_state_id);
+
         reinitSearchState(succ_state);
 
         int new_cost = s->eg + cost;
@@ -552,14 +560,18 @@ void ARAStar::expand(SearchState* s)
                 
             if (succ_state->iteration_closed != m_iteration) {
                 succ_state->f = computeKey(succ_state);
+
                 if (m_open.contains(succ_state)) {
+
                     SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has already been expanded in  decrease priority!");
                     m_open.decrease(succ_state);
+
                 } else {
+
                     m_open.push(succ_state);
                     SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to  open list!");
-                
                 }
+
             } else if (!succ_state->incons) {
                 m_incons.push_back(succ_state);
             }

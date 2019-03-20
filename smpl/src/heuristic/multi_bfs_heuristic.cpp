@@ -20,6 +20,7 @@ MultiBfsHeuristic::~MultiBfsHeuristic()
 
 bool MultiBfsHeuristic::init(RobotPlanningSpace* space, const OccupancyGrid* grid)
 {
+    ROS_INFO_STREAM("MULTI BFS HEURISTIC");
     if (!grid) {
         return false;
     }
@@ -273,6 +274,7 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id)
 
 int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int base_heuristic_idx)
 {
+
     if (!m_pp) {
         return 0;
     }
@@ -288,7 +290,8 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
         }
     }
     else
-    {   
+    {
+        ROS_INFO_STREAM("BEFORE PROECT TO POINT");
         if (!m_pp->projectToPoint(state_id, p)) {
             return 0;
         }
@@ -296,9 +299,9 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
     
     Eigen::Vector3i dp;
     grid()->worldToGrid(p.x(), p.y(), p.z(), dp.x(), dp.y(), dp.z());
-    SMPL_DEBUG_STREAM("Getting distance heursitic for group "<<planning_group);
-    SMPL_DEBUG_STREAM("get heursitic for grid point "<<dp.x()<<","<<dp.y()<<","<<dp.z());
-    SMPL_DEBUG_STREAM("get heursitic for world point "<<p.x()<<","<<p.y()<<","<<p.z());
+    SMPL_INFO_STREAM("Getting distance heursitic for group "<<planning_group);
+    SMPL_INFO_STREAM("get heursitic for grid point "<<dp.x()<<","<<dp.y()<<","<<dp.z());
+    SMPL_INFO_STREAM("get heursitic for world point "<<p.x()<<","<<p.y()<<","<<p.z());
     
    double cost  = getBfsCostToGoal(*m_bfs[planning_group], dp.x(), dp.y(), dp.z());
 
@@ -306,6 +309,7 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
     if (!m_pp->projectToPoint(planningSpace()->getStartStateID(), p)) {
         return 0.0;
     }
+    //ROS_INFO_STREAM("after project to point multi_");
 
     int sx, sy, sz;
     grid()->worldToGrid(p.x(), p.y(), p.z(), sx, sy, sz);

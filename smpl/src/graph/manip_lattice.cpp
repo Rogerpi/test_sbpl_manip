@@ -76,6 +76,8 @@ bool ManipLattice::init(
     const std::vector<double>& resolutions,
     ActionSpace* actions)
 {
+    istree = false;
+    apply_time = 0;
     SMPL_DEBUG_NAMED(_params->graph_log, "Initialize Manip Lattice");
 
     if (!actions) {
@@ -94,8 +96,12 @@ bool ManipLattice::init(
     }
 
     m_fk_iface = _robot->getExtension<ForwardKinematicsInterface>();
-
     m_ik_iface = _robot->getExtension<InverseKinematicsInterface>();
+
+    //dual
+    //m_fk_iface2 = _robot2->getExtension<ForwardKinematicsInterface>();
+    //m_ik_iface2 = _robot2->getExtension<InverseKinematicsInterface>();
+
     if (!m_ik_iface) {
         SMPL_DEBUG("Manip Lattice requires Inverse Kinematics Interface extension");
         return false;
@@ -148,6 +154,9 @@ bool ManipLattice::init(
 
     return true;
 }
+
+
+
 
 void ManipLattice::PrintState(int stateID, bool verbose, FILE* fout)
 {
@@ -216,11 +225,14 @@ void ManipLattice::PrintState(int stateID, bool verbose, FILE* fout)
     m_actions->setMotionPlanRequestType(request_type);
  }
 
+
+
 void ManipLattice::GetSuccs(
     int state_id,
     std::vector<int>* succs,
     std::vector<int>* costs)
 {
+
     assert(state_id >= 0 && state_id < m_states.size() && "state id out of bounds");
     assert(succs && costs && "successor buffer is null");
     assert(m_actions && "action space is uninitialized");
@@ -251,11 +263,14 @@ void ManipLattice::GetSuccs(
 
     std::vector<Action> actions;
     ActionsWeight weights;
+    auto before_apply = clock::now();
     if (!m_actions->apply(parent_entry->state, actions,weights,-1)) {
+        apply_time += to_seconds(clock::now() - before_apply);
         SMPL_DEBUG("Failed to get actions");
         return;
     }
-
+    apply_time += to_seconds(clock::now() - before_apply);
+    ROS_INFO_STREAM("APPLY TIME: "<<apply_time);
     SMPL_DEBUG_NAMED(params()->expands_log, "  actions: %zu", actions.size());
 
     // check actions for validity
@@ -1221,7 +1236,8 @@ bool ManipLattice::projectToBasePoint(int state_id, Eigen::Vector3d& pos)
         pos[1] = m_states[state_id]->state[1];
         pos[2] = m_states[state_id]->state[2];*/
         std::vector<double> base;
-        m_fk_iface->computeFK(m_states[state_id]->state,"arm_base_link_roll",base);
+        //TODO CHANGE FOR DUAL
+        m_fk_iface->computeFK(m_states[state_id]->state,"ECA_Jaw",base);
         SMPL_DEBUG_STREAM("FK base "<<base[0]<<","<<base[1]<<","<<base[2]);
         pos[0]=base[0];
         pos[1]=base[1];
@@ -1356,9 +1372,12 @@ int ManipLattice::reserveHashEntry()
 /// NOTE: const although RobotModel::computePlanningLinkFK used underneath may
 /// not be
 bool ManipLattice::computePlanningFrameFK(
+
     const RobotState& state,
     std::vector<double>& pose) const
 {
+
+    ROS_ERROR_STREAM("COMPUTE PLANNING FRAME FK");
     assert(state.size() == robot()->jointVariableCount());
     assert(m_fk_iface);
 
@@ -1372,10 +1391,41 @@ bool ManipLattice::computePlanningFrameFK(
     return true;
 }
 
+//FOR DUAL
+bool ManipLattice::computePlanningFrameFK(
+
+        const RobotState& state,
+        std::vector<double>& pose, bool first) const
+{
+
+    ROS_INFO_STREAM("DUAL: COMPUTE PLANNING FRAME FK");
+    assert(state.size() == robot()->jointVariableCount());
+    assert(m_fk_iface);
+
+    if (first) {
+        if (!m_fk_iface->computeFK(state, "ECA_Jaw", pose)) {
+            return false;
+        }
+    }
+    else{
+        if (!m_fk_iface->computeFK(state, "R5M_Jaw", pose)) {
+            return false;
+        }
+    }
+
+    pose = getTargetOffsetPose(pose);
+
+    assert(pose.size() == 6);
+    return true;
+}
+
+
+
 bool ManipLattice::computeBaseFrameIK(
         const std::vector<double>& pose,
         RobotState& state) const
 {
+    ROS_ERROR_STREAM("COMPUTE BASE FRAME IK");
     assert(m_ik_iface);
     std::vector<RobotState> states;
     RobotState seed(robot()->jointVariableCount(), 0);
@@ -1384,6 +1434,7 @@ bool ManipLattice::computeBaseFrameIK(
     }
     //state  = states[0];
 }
+
 
 int ManipLattice::cost(
     ManipLatticeState* HashEntry1,

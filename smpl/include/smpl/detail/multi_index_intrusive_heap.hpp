@@ -149,24 +149,26 @@ void multi_index_intrusive_heap<T, Compare>::update(T* e, int idx)
     push(e, idx);
 }
 
+
+
 template <typename T, class Compare>
 void multi_index_intrusive_heap<T, Compare>::increase(T* e, int idx)
 {
-    assert(e && contains(e));
+    assert(e && contains(e)); //change with idx
     percolate_down(e->m_heap_index[idx]);
 }
 
 template <class T, class Compare>
 void multi_index_intrusive_heap<T, Compare>::decrease(T* e, int idx)
 {
-    assert(e && contains(e));
+    assert(e && contains(e)); //change with idx
     percolate_up(e->m_heap_index[idx], idx);
 }
 
 template <class T, class Compare>
 void multi_index_intrusive_heap<T, Compare>::erase(T* e, int idx)
 {
-    assert(e && contains(e));
+    assert(e && contains(e)); //change with idx
     size_type pos = e->m_heap_index[idx];
     m_data[pos] = m_data.back();
     m_data[pos]->m_heap_index[idx] = pos;

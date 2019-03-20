@@ -160,7 +160,8 @@ void intrusive_heap<T, Compare>::pop()
     // NOTE: no need to set heap index here, as it is not required in
     // percolate_down(); also produces incorrect behavior when popping from a
     // heap of size 1 without the required identity check here
-//    m_data[1]->m_heap_index = 1;
+//    m_data[1]->m_heap_index
+//    = 1;
     m_data.pop_back();
     percolate_down(1);
 }

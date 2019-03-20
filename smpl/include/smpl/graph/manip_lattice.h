@@ -110,6 +110,14 @@ public:
         const std::vector<double>& resolutions,
         ActionSpace* actions);
 
+    bool init(
+            RobotModel* robot,
+            RobotModel* robot2,
+            CollisionChecker* checker,
+            const PlanningParams* params,
+            const std::vector<double>& resolutions,
+            ActionSpace* actions);
+
     const std::vector<double>& resolutions() const { return m_coord_deltas; }
     ActionSpace* actionSpace() { return m_actions; }
     const ActionSpace* actionSpace() const { return m_actions; }
@@ -162,6 +170,9 @@ public:
     ///@{
     virtual Extension* getExtension(size_t class_code) override;
     ///@}
+
+
+    double apply_time;
 
     /// \name Required Public Functions from DiscreteSpaceInformation
     ///@{
@@ -219,8 +230,13 @@ protected:
     int reserveHashEntry();
 
     bool computePlanningFrameFK(
-        const RobotState& state,
-        std::vector<double>& pose) const;
+            const RobotState& state,
+            std::vector<double>& pose) const;
+
+    bool computePlanningFrameFK(
+            const RobotState& state,
+            std::vector<double>& pose, bool first) const;
+
 
     bool computeBaseFrameIK(
         const std::vector<double>& pose,
@@ -260,6 +276,13 @@ private:
 
     ForwardKinematicsInterface* m_fk_iface = nullptr;
     InverseKinematicsInterface* m_ik_iface = nullptr;
+
+    ForwardKinematicsInterface* m_fk_iface2 = nullptr;
+    InverseKinematicsInterface* m_ik_iface2 = nullptr;
+
+
+    bool istree;
+
     ActionSpace* m_actions = nullptr;
     double clearance_threshold_;
     double dist_threshold_;

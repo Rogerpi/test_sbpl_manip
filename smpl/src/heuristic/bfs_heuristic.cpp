@@ -51,6 +51,7 @@ BfsHeuristic::~BfsHeuristic()
 
 bool BfsHeuristic::init(RobotPlanningSpace* space, const OccupancyGrid* grid)
 {
+    ROS_INFO_STREAM("BFS HEURISTIC");
     if (!grid) {
         return false;
     }
@@ -87,7 +88,9 @@ void BfsHeuristic::updateGoal(const GoalConstraint& goal)
             goal.tgt_off_pose[0], goal.tgt_off_pose[1], goal.tgt_off_pose[2],
             gx, gy, gz);
 
-    SMPL_DEBUG_NAMED(LOG, "Setting the BFS heuristic goal (%d, %d, %d)", gx, gy, gz);
+    ROS_INFO_STREAM("GOAL: "<<goal.tgt_off_pose[0]<<", "<<goal.tgt_off_pose[1]<<", "<<goal.tgt_off_pose[2]);
+
+    SMPL_INFO_NAMED(LOG, "Setting the BFS heuristic goal (%d, %d, %d)", gx, gy, gz);
 
     if (!m_bfs->inBounds(gx, gy, gz)) {
         SMPL_ERROR_NAMED(LOG, "Heuristic goal is out of BFS bounds");
@@ -159,7 +162,12 @@ int BfsHeuristic::GetGoalHeuristic(int state_id)
     Eigen::Vector3i dp;
     grid()->worldToGrid(p.x(), p.y(), p.z(), dp.x(), dp.y(), dp.z());
 
-    return getBfsCostToGoal(*m_bfs, dp.x(), dp.y(), dp.z());
+
+    int cost = getBfsCostToGoal(*m_bfs, dp.x(), dp.y(), dp.z());
+
+    ROS_INFO_STREAM("HEURISTIC: "<<dp.x()<<", "<<dp.y()<<", "<<dp.z()<<"COST: "<<cost);
+
+    return cost;
 }
 
 int BfsHeuristic::GetStartHeuristic(int state_id)
@@ -215,21 +223,26 @@ auto BfsHeuristic::getWallsVisualization() const -> visual::Marker
 
 auto BfsHeuristic::getValuesVisualization() -> visual::Marker
 {
+    ROS_INFO_STREAM("GET VALUES VIS");
     if (m_goal_x < 0 || m_goal_y < 0 || m_goal_z < 0) {
+        ROS_INFO_STREAM("negative goal");
         return visual::MakeEmptyMarker();
     }
 
     if (m_bfs->isWall(m_goal_x, m_goal_y, m_goal_z)) {
+       ROS_INFO_STREAM("OBSTACLE GOAL");
         return visual::MakeEmptyMarker();
     }
 
     // hopefully this doesn't screw anything up too badly...this will flush the
     // bfs to a little past the start, but this would be done by the search
     // hereafter anyway
+
     int start_heur = GetGoalHeuristic(planningSpace()->getStartStateID());
-    if (start_heur == Infinity) {
-        return visual::MakeEmptyMarker();
-    }
+    //if (start_heur == Infinity) {
+    //  ROS_INFO_STREAM("INFINITY START");
+    //    return visual::MakeEmptyMarker();
+    //}
 
     SMPL_INFO("Start cell heuristic: %d", start_heur);
 

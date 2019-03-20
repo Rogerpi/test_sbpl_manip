@@ -385,6 +385,7 @@ bool KDLRobotModel::computeFK(
     const std::string& name,
     std::vector<double>& pose)
 {
+    ROS_INFO_STREAM("KDL ROBOT MODEL FK");
     KDL::Frame f;
     pose.resize(6, 0);
     if (computeFK(angles, name, f)) {

@@ -126,19 +126,19 @@ bool ManipLatticeActionSpace::load(const std::string& action_filename)
 
     // read number of actions
     if (fscanf(fCfg, "%d", &nrows) < 1) {
-        SMPL_ERROR("Parsed string has length < 1.");
+        SMPL_ERROR("Parsed string has length < 1..");
         return false;
     }
 
     // read length of joint array
     if (fscanf(fCfg, "%d", &ncols) < 1) {
-        SMPL_ERROR("Parsed string has length < 1.");
+        SMPL_ERROR("Parsed string has length < 1...");
         return false;
     }
 
     // read number of short distance motion primitives
     if (fscanf(fCfg, "%d", &short_mprims) < 1) {
-        SMPL_ERROR("Parsed string has length < 1.");
+        SMPL_ERROR("Parsed string has length < 1....");
         return false;
     }
 
@@ -153,15 +153,16 @@ bool ManipLatticeActionSpace::load(const std::string& action_filename)
         useAmp(MotionPrimitive::SHORT_DISTANCE, true);
     }*/
 
-    ManipLattice* lattice = static_cast<ManipLattice*>(planningSpace());
-    
-    
+    ManipLattice* lattice =  static_cast<ManipLattice*>(planningSpace());
+
+    ROS_INFO_STREAM("SIZE 1: "<<m_mprims.size());
     for (int i = 0; i < nrows; ++i) {
+
         // read joint delta
         for (int j = 0; j < ncols-2; ++j) {
             double d;
             if (fscanf(fCfg, "%lf", &d) < 1)  {
-                SMPL_ERROR("Parsed string has length < 1.");
+                SMPL_ERROR("Parsed string has length < 1");
                 return false;
             }
             if (feof(fCfg)) {
@@ -216,10 +217,15 @@ void ManipLatticeActionSpace::addMotionPrim(
     m.weight = weight;
     m_mprims.push_back(m);
     if (add_converse) {
+      /*
+        m2.action.push_back(mprim);
+        m2.group = sbpl::motion::GroupType(group);
+        m2.weight = weight;*/
         for (RobotState& state : m.action) {
             for (size_t i = 0; i < state.size(); ++i) {
                 state[i] *= -1.0;
             }
+
         }
         m_mprims.push_back(m);
 
@@ -233,12 +239,15 @@ void ManipLatticeActionSpace::addMotionPrim(
 void ManipLatticeActionSpace::clear()
 {
     m_mprims.clear();
-
+    
     // add all amps to the motion primitive set
     MotionPrimitive mprim;
 
+
+
     mprim.type = MotionPrimitive::SNAP_TO_RPY;
     mprim.action.clear();
+
     mprim.group = sbpl::motion::GroupType::ANY;
     mprim.weight = 0.5;
     m_mprims.push_back(mprim);
@@ -362,12 +371,13 @@ bool ManipLatticeActionSpace::apply(
     std::vector<Action> act;
     for (const MotionPrimitive& prim : m_mprims) {
     act.clear();
-    if (getAction(parent, goal_dist, start_dist, prim, act, false)) {
-        actions.insert(actions.end(), act.begin(), act.end());
-    }
+        if (getAction(parent, goal_dist, start_dist, prim, act, false)) {
+            
+            actions.insert(actions.end(), act.begin(), act.end());
+        }
     }
     if (actions.empty()) {
-        SMPL_WARN_ONCE("No motion primitives specified");
+        SMPL_WARN_ONCE("No motion primitives specified...");
     }
 
     return true;
@@ -397,12 +407,12 @@ bool ManipLatticeActionSpace::apply(
     }
 
     std::vector<Action> act;
-    
     if(group!=-1)
     {
         std::for_each( m_mprims.begin(), m_mprims.end(),
         [&](MotionPrimitive& mp ) mutable
            {
+               //ROS_WARN_STREAM("MP GROUP: "<<mp.group);
             
              if( mp.group == group || mp.group == sbpl::motion::GroupType::ANY)
              { 
@@ -417,6 +427,7 @@ bool ManipLatticeActionSpace::apply(
                             SMPL_WARN_STREAM("First dim size "<<act[0].size()<<" Second "<<act[0][i].size());
                             SMPL_WARN_STREAM("val["<<i<<","<<j<<"] "<<(act[0][i][j]));
                         }*/
+                    
                 }
              }
              
@@ -424,16 +435,17 @@ bool ManipLatticeActionSpace::apply(
     }
     else
     {
-        for (const MotionPrimitive& prim : m_mprims) {
+            for (const MotionPrimitive& prim : m_mprims) {
             act.clear();
             if (getAction(parent, goal_dist, start_dist, prim, act, false)) {
                 actions.insert(actions.end(), act.begin(), act.end());
                 weights.push_back(prim.weight);
             }
+
         }
     }
     if (actions.empty()) {
-        SMPL_WARN_ONCE("No motion primitives specified");
+        SMPL_WARN_ONCE("No motion primitives specified apply");
     }
 
     /*for(int i=0;i<actions.size();i++){
@@ -498,7 +510,7 @@ bool ManipLatticeActionSpace::applyPredActions(const RobotState& parent, std::ve
         }
     }
     if (actions.empty()) {
-        SMPL_WARN_ONCE("No motion primitives specified");
+        SMPL_WARN_ONCE("No motion primitives specified applyPredAct");
     }
 
     return true;
@@ -512,6 +524,7 @@ bool ManipLatticeActionSpace::getAction(
     std::vector<Action>& actions, bool isPredecessor)
 {
     if (!mprimActive(start_dist, goal_dist, mp.type)) {
+        ROS_DEBUG_STREAM("prim not active");
         return false;
     }
 
@@ -563,7 +576,6 @@ bool ManipLatticeActionSpace::getAction(
             actions[0].resize(1);
             actions[0][0] = planningSpace()->goal().angles;
         }
-
         return true;
     }
     default:
@@ -577,9 +589,12 @@ bool ManipLatticeActionSpace::applyMotionPrimitive(
     const MotionPrimitive& mp,
     Action& action, bool isPredecessor)
 {
+    //SIZE
     action = mp.action;
     Action temp = action;
+
     for (size_t i = 0; i < action.size(); ++i) {
+        //ROS_INFO_STREAM(action[i].size()<<" : "<<state.size());
         if (action[i].size() != state.size()) {
             return false;
         }
@@ -665,7 +680,7 @@ bool ManipLatticeActionSpace::mprimActive(
     MotionPrimitive::Type type) const
 {
 
-    ROS_INFO_STREAM("Type is "<<type<<", start_dist "<<start_dist<<", goal_dist "<<goal_dist);
+    ROS_DEBUG_STREAM("Type is "<<type<<", start_dist "<<start_dist<<", goal_dist "<<goal_dist);
     /*std::getchar();*/
    if (type == MotionPrimitive::LONG_DISTANCE) {
         if (m_use_long_and_short_dist_mprims) {

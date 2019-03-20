@@ -163,6 +163,8 @@ public:
     void set_initialsolution_eps(double eps) override;
     ///@}
 
+    double expand_time,succs_time;
+
 private:
 
     struct SearchState : public heap_element

@@ -163,7 +163,9 @@ enum GroupType
     ANY = -1, 
     BASE = 0,
     ARM = 1,
-    BASE_ISO = 2
+    R5M = 2,
+    BASE_ISO = 3,
+
 } ;
 
 enum BaseGroupHeuristic

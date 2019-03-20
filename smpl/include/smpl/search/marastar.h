@@ -121,10 +121,10 @@ private:
     {
         int state_id;       // corresponding graph state
         unsigned int g;     // cost-to-come
-        unsigned int h[2];     // estimated cost-to-go
-        unsigned int f[2];     // (g + eps * h) at time of insertion into OPEN
+        unsigned int h[3];     // estimated cost-to-go
+        unsigned int f[3];     // (g + eps * h) at time of insertion into OPEN
         unsigned int eg;    // g-value at time of expansion
-        unsigned short iteration_closed[2];
+        unsigned short iteration_closed[3];
         unsigned short call_number;
         SearchState* bp; 
         bool incons;
@@ -138,10 +138,17 @@ private:
         }
     };
 
-    struct SearchStateCompareArm
+    struct SearchStateCompareECA
     {
         bool operator()(const SearchState& s1, const SearchState& s2) const {
             return s1.f[1] < s2.f[1];
+        }
+    };
+
+    struct SearchStateCompareR5M
+    {
+        bool operator()(const SearchState& s1, const SearchState& s2) const {
+            return s1.f[2] < s2.f[2];
         }
     };
 
@@ -181,8 +188,10 @@ private:
     //multi_index_intrusive_heap<SearchState, SearchStateCompare> m_open;
     
     multi_index_intrusive_heap<SearchState, SearchStateCompareBase> m_open_base;
-    multi_index_intrusive_heap<SearchState, SearchStateCompareBase> m_open_base_iso;
-    multi_index_intrusive_heap<SearchState, SearchStateCompareArm> m_open_arm;
+    //multi_index_intrusive_heap<SearchState, SearchStateCompareBase> m_open_base_iso;
+    multi_index_intrusive_heap<SearchState, SearchStateCompareECA> m_open_eca;
+    multi_index_intrusive_heap<SearchState, SearchStateCompareR5M> m_open_r5m;
+
 
     std::vector<SearchState*> m_incons;
     double m_curr_eps;
@@ -204,8 +213,8 @@ private:
 
     double m_satisfied_eps;
 
-    bool expansion_status[2];
-    double min_heuristic_found[2];
+    bool expansion_status[3];
+    double min_heuristic_found[3];
     int current_planning_group;
 
     void convertTimeParamsToReplanParams(

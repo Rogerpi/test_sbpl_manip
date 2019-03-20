@@ -75,7 +75,7 @@ namespace motion {
 
 using PlanningSpaceFactory = std::function<
         std::unique_ptr<RobotPlanningSpace>(
-                RobotModel*, CollisionChecker*, PlanningParams*)>;
+                RobotModel*,RobotModel*, CollisionChecker*, PlanningParams*)>;
 
 using HeuristicFactory = std::function<
         std::unique_ptr<RobotHeuristic>(
@@ -91,9 +91,16 @@ class PlannerInterface
 public:
 
     PlannerInterface(
-        RobotModel* robot,
-        CollisionChecker* checker,
-        OccupancyGrid* grid);
+            RobotModel* robot,
+            CollisionChecker* checker,
+            OccupancyGrid* grid);
+
+    //dual
+    PlannerInterface(
+            RobotModel* robot,
+            RobotModel* robot2,
+            CollisionChecker* checker,
+            OccupancyGrid* grid);
 
     ~PlannerInterface();
 
@@ -157,6 +164,8 @@ public:
 protected:
 
     RobotModel* m_robot;
+    //dual
+    RobotModel* m_robot2 = nullptr;
     CollisionChecker* m_checker;
     OccupancyGrid* m_grid;
 

@@ -199,6 +199,7 @@ private:
 
     RobotState m_start;
     GoalConstraint m_goal;
+    GoalConstraint m_goal2;
 
     std::vector<RobotHeuristic*> m_heuristics;
 

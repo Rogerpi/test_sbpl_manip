@@ -105,8 +105,10 @@ public:
     ///
     /// \return true if forward kinematics were computed; false otherwise
     virtual bool computePlanningLinkFK(
-        const RobotState& state,
-        std::vector<double>& pose) = 0;
+            const RobotState& state,
+            std::vector<double>& pose) = 0;
+
+
 };
 
 namespace ik_option {
@@ -137,12 +139,24 @@ public:
         RobotState& solution,
         ik_option::IkOption option = ik_option::UNRESTRICTED) = 0;
 
+ /*   virtual bool computeIK(
+            const std::vector<double>& pose,
+            const RobotState& start,
+            RobotState& solution, int id,
+            ik_option::IkOption option = ik_option::UNRESTRICTED) = 0;*/
+
     /// \brief Compute multiple inverse kinematic solutions.
     virtual bool computeIK(
-        const std::vector<double>& pose,
-        const RobotState& start,
-        std::vector<RobotState>& solutions,
-        ik_option::IkOption option = ik_option::UNRESTRICTED) = 0;
+            const std::vector<double>& pose,
+            const RobotState& start,
+            std::vector<RobotState>& solutions,
+            ik_option::IkOption option = ik_option::UNRESTRICTED) = 0;
+
+  /*  virtual bool computeIK(
+            const std::vector<double>& pose,
+            const RobotState& start,
+            std::vector<RobotState>& solutions, int id,
+            ik_option::IkOption option = ik_option::UNRESTRICTED) = 0;*/
 };
 
 class RedundantManipulatorInterface : public virtual RobotModel
