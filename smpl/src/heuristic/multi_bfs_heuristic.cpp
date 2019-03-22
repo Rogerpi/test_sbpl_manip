@@ -57,20 +57,34 @@ void MultiBfsHeuristic::setCostPerCell(int cost_per_cell)
 
 void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
 {
+    ROS_WARN_STREAM("SOMEBODY CALLED UPDATE GOAL! goal2 set to y+=0.20");
+    std::getchar();
+    GoalConstraint goal2(goal);
+    goal2.tgt_off_pose[1] += 0.4;
     int gx, gy, gz, base_gx, base_gy, base_gz;
+    int gx2, gy2, gz2;
     grid()->worldToGrid(
             goal.tgt_off_pose[0], goal.tgt_off_pose[1], goal.tgt_off_pose[2],
             gx, gy, gz);
+
+    grid()->worldToGrid(
+            goal2.tgt_off_pose[0], goal2.tgt_off_pose[1], goal2.tgt_off_pose[2],
+            gx2, gy2, gz2);
 
     m_goal_x = gx;
     m_goal_y = gy;
     m_goal_z = gz;
 
+    m_goal_x2 = gx2;
+    m_goal_y2 = gy2;
+    m_goal_z2 = gz2;
+
     SMPL_ERROR_NAMED(LOG, "Setting the BFS heuristic goal (%d, %d, %d)", gx, gy, gz);
-    SMPL_ERROR_STREAM("Origin_arm "<<gx<<","<<gy<<","<<gz);
     
     if(goal.angles.empty())
     {
+        ROS_ERROR_STREAM("GOAL ANGLES EMPTY. Didnt modify this for dual arm. enter to continue");
+        std::getchar();
         int listSize = ((double)(1.8/grid()->resolution()))+1;
         std::vector<int> inputGoals(pow(listSize,3)*3);
         std::vector<Eigen::Vector3d> centers;
@@ -156,12 +170,14 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
     else
     {
         goal_config = goal.angles;
+        goal_config2 = goal2.angles;
         /*SMPL_ERROR_STREAM("Goal config is "<<goal_config[0]<<","<<goal_config[1]<<","
             <<goal_config[2]<<","<<goal_config[3]<<","<<goal_config[4]<<","<<goal_config[5]<<","
             <<goal_config[6]<<","<<goal_config[7]);*/
         grid()->worldToGrid(
                 goal.angles[0], goal.angles[1], 5,//goal.angles[2],
                 base_gx, base_gy, base_gz);
+        ROS_WARN_STREAM("WHY HARDCODED 5--- TRA!");
 
         SMPL_ERROR_STREAM("Base Goal :"<<goal.angles[0]<<","<<goal.angles[1]<<","<<5//goal.angles[2]
             <<","<<base_gx<<","<<base_gy<<","<<base_gz);
@@ -175,13 +191,22 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
         m_bfs[GroupType::BASE]->run(base_gx,base_gy,base_gz);
     }
 
+
     if (!m_bfs[GroupType::ARM]->inBounds(gx, gy, gz))
     {
         SMPL_ERROR_NAMED(LOG, "Arm Heuristic goal is out of BFS bounds");
     }
     
     m_bfs[GroupType::ARM]->run(gx, gy, gz);
-        
+
+
+    if (!m_bfs[GroupType::R5M]->inBounds(gx2, gy2, gz2))
+    {
+                SMPL_ERROR_NAMED(LOG, "Arm Heuristic goal is out of BFS bounds");
+    }
+
+    m_bfs[GroupType::R5M]->run(gx2, gy2, gz2);
+
 
     if (!m_pp) {
         return ;
@@ -190,6 +215,8 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
 
 double MultiBfsHeuristic::getMetricStartDistance(double x, double y, double z)
 {
+    ROS_ERROR_STREAM("Called getMetricStart distance not made for dual. enter to continue");
+    std::getchar();
     int start_id = planningSpace()->getStartStateID();
     if (!m_pp) {
         return 0.0;
@@ -215,6 +242,8 @@ double MultiBfsHeuristic::getMetricStartDistance(double x, double y, double z)
 
 double MultiBfsHeuristic::getMetricGoalDistance(double x, double y, double z)
 {
+    ROS_ERROR_STREAM("Called getMetricGoal distance not made for dual. enter to continue");
+    std::getchar();
     int gx, gy, gz;
     grid()->worldToGrid(x, y, z, gx, gy, gz);
     if (!m_bfs[GroupType::ARM]->inBounds(gx, gy, gz)) {
@@ -226,6 +255,7 @@ double MultiBfsHeuristic::getMetricGoalDistance(double x, double y, double z)
 
 double MultiBfsHeuristic::getMetricGoalDistance(double x, double y, double z, GroupType planning_group)
 {
+    ROS_WARN_STREAM("Not implemented getMEtricGoalDistance for group");
     /*int gx, gy, gz;
     if(planning_group==GroupType::BASE)
     {
@@ -257,6 +287,8 @@ Extension* MultiBfsHeuristic::getExtension(size_t class_code)
 
 int MultiBfsHeuristic::GetGoalHeuristic(int state_id)
 {
+    ROS_WARN_STREAM("Called getgoalheuristic... i.e getgoalheuristic of the arm. enter to continue");
+    std::getchar();
     if (!m_pp) {
         return 0;
     }
@@ -279,22 +311,38 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
         return 0;
     }
 
+    std::string ee_link;
     Eigen::Vector3d p;
     if(planning_group==GroupType::BASE)
     {
+        ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO BASE POINT!!!");
         if (state_id==0)
             return 0;
 
         else if (!m_pp->projectToBasePoint(state_id, p)) {
             return 0;
         }
+        ee_link = "ECA_Jaw";
     }
-    else
+    else if(planning_group==GroupType::ARM)
     {
-        ROS_INFO_STREAM("BEFORE PROECT TO POINT");
-        if (!m_pp->projectToPoint(state_id, p)) {
+        ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO POINT ECA MBFS!!!");
+        ee_link = "ECA_Jaw";
+        if (!m_pp->projectToPoint(state_id, ee_link, p)) {
             return 0;
         }
+    }
+    else if(planning_group == GroupType::R5M) {
+        ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO POINT R5M MBFS!!!");
+        ee_link = "R5M_Jaw";
+        if (!m_pp->projectToPoint(state_id, ee_link, p)) {
+            return 0;
+
+        }
+    }
+    else{
+        ROS_ERROR_STREAM("No group identified. Setting BASE as group");
+        return GetGoalHeuristic(state_id,GroupType::BASE,base_heuristic_idx); //does it make any sense?
     }
     
     Eigen::Vector3i dp;
@@ -302,11 +350,12 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
     SMPL_INFO_STREAM("Getting distance heursitic for group "<<planning_group);
     SMPL_INFO_STREAM("get heursitic for grid point "<<dp.x()<<","<<dp.y()<<","<<dp.z());
     SMPL_INFO_STREAM("get heursitic for world point "<<p.x()<<","<<p.y()<<","<<p.z());
-    
+
+    ROS_INFO_STREAM("call getbfscostto goal for planning group: "<<planning_group);
    double cost  = getBfsCostToGoal(*m_bfs[planning_group], dp.x(), dp.y(), dp.z());
 
    
-    if (!m_pp->projectToPoint(planningSpace()->getStartStateID(), p)) {
+    if (!m_pp->projectToPoint(planningSpace()->getStartStateID(), ee_link, p)) {
         return 0.0;
     }
     //ROS_INFO_STREAM("after project to point multi_");
@@ -315,50 +364,6 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
     grid()->worldToGrid(p.x(), p.y(), p.z(), sx, sy, sz);
 
 
-if(state_id>12)
-{
-   double start_goal_cost = getBfsCostToGoal(*m_bfs[1], sx,sy,sz);
-   double ee_cost = getBfsCostToGoal(*m_bfs[1], dp.x(), dp.y(), dp.z());
-   double distToStart = getMetricStartDistance(p.x(),p.y(),p.z());
-   SMPL_INFO_STREAM("cost "<<ee_cost<<" vs. start_goal_cost "<<start_goal_cost);
-   double cost_ratio = ee_cost/start_goal_cost;
-   double threshold = (2.0/grid()->resolution())*m_cost_per_cell;
-   if(!goal_config.empty() && m_manip!=nullptr && state_id!=0)
-   {
-    RobotState current = m_manip->extractState(state_id);
-    /*SMPL_INFO_STREAM(current[0]<<","<<current[1]<<","<<current[2]<<","<<current[3]<<","<<current[14]<<","<<current[5]
-        <<","<<current[6]<<","<<current[7]);
-    SMPL_INFO_STREAM("here in get goal heuristic initial heuristic "<<cost<<" ee_cost "<<ee_cost<<", start cost "<<start_goal_cost<<" and threshold is "<<threshold<<",group "<<planning_group);
-    cost += ((ceil((fabs(angles::shortest_angle_dist(goal_config[3], current[3])))/grid()->resolution()))*m_cost_per_cell*10);
-     for(int i=4;i<goal_config.size();i++){
-            double diff_dist =  (fabs(angles::shortest_angle_dist(goal_config[i],current[i])));
-            diff_dist = ceil(diff_dist/grid()->resolution()) * m_cost_per_cell*20;
-            cost+= diff_dist;
-            SMPL_INFO_STREAM("angle ["<<i<<"] has a diff of "<<diff_dist<<" and cost "<<cost);
-        }  */
-    /*if(planning_group==0 && cost<threshold)
-    {
-        cost += ((ceil((fabs(angles::shortest_angle_dist(goal_config[3], current[3])))/grid()->resolution()))*3000);
-        SMPL_INFO_STREAM("heuristic of yaw "<<cost);
-    }
-    else if(abs(start_goal_cost-ee_cost)>threshold)//&& cost_ratio>1)*/
-
-   /* {
-        double arm_cost = 0;
-        for(int i=4;i<goal_config.size();i++){
-            double diff_dist =  (fabs(angles::shortest_angle_dist(goal_config[i],current[i])));
-            diff_dist = ceil(diff_dist/grid()->resolution())*m_cost_per_cell;// * (start_goal_cost/ee_cost)*m_cost_per_cell;
-            arm_cost += (diff_dist/ee_cost);
-            SMPL_INFO_STREAM("angle ["<<i<<"] has a diff of "<<diff_dist);
-        }
-
-        SMPL_INFO_STREAM(" penalize heuristic of arm before inflation "<<arm_cost);
-        arm_cost*=2000;
-        SMPL_INFO_STREAM(" penalize heuristic of arm after inflation "<<arm_cost);
-        cost+= arm_cost;
-        }*/
-   }
-}
 
 SMPL_INFO_STREAM("Total final heuristic Cost is "<<cost);
 //std::getchar();
@@ -375,6 +380,8 @@ int MultiBfsHeuristic::GetStartHeuristic(int state_id)
 
 int MultiBfsHeuristic::GetFromToHeuristic(int from_id, int to_id)
 {
+    ROS_ERROR_STREAM("Get from to heuristic not made for dual. enter to continue");
+    std::getchar();
     if (to_id == planningSpace()->getGoalStateID()) {
         return GetGoalHeuristic(from_id);
     }
@@ -431,7 +438,7 @@ auto MultiBfsHeuristic::getValuesVisualization() -> visual::Marker
     // hopefully this doesn't screw anything up too badly...this will flush the
     // bfs to a little past the start, but this would be done by the search
     // hereafter anyway
-    int start_heur = GetGoalHeuristic(planningSpace()->getStartStateID());
+    int start_heur = GetGoalHeuristic(planningSpace()->getStartStateID(),GroupType::ARM,0);
     if (start_heur == Infinity) {
         return visual::MakeEmptyMarker();
     }
@@ -527,7 +534,6 @@ auto MultiBfsHeuristic::getValuesVisualization() -> visual::Marker
         }
         }
     }
-
      return visual::MakeCubesMarker(
             std::move(points),
             0.5 * grid()->resolution(),
@@ -536,16 +542,138 @@ auto MultiBfsHeuristic::getValuesVisualization() -> visual::Marker
             "bfs_values");
 }
 
+    auto MultiBfsHeuristic::getValuesVisualization2() -> visual::Marker
+    {
+        if (m_goal_x2 < 0 || m_goal_y2 < 0 || m_goal_z2 < 0) {
+            return visual::MakeEmptyMarker();
+        }
+
+        if (m_bfs[GroupType::R5M]->isWall(m_goal_x2, m_goal_y2, m_goal_z2)) {
+            return visual::MakeEmptyMarker();
+        }
+
+        // hopefully this doesn't screw anything up too badly...this will flush the
+        // bfs to a little past the start, but this would be done by the search
+        // hereafter anyway
+        int start_heur = GetGoalHeuristic(planningSpace()->getStartStateID(),GroupType::R5M,0);
+        if (start_heur == Infinity) {
+            return visual::MakeEmptyMarker();
+        }
+
+                SMPL_INFO("Start cell heuristic: %d", start_heur);
+
+        const int max_cost = (int)(1.1 * start_heur);
+
+                SMPL_INFO("Get visualization of cells up to cost %d", max_cost);
+
+        // ...and this will also flush the bfs...
+
+        const size_t max_points = 4 * 4096;
+
+        std::vector<Eigen::Vector3d> points;
+        std::vector<visual::Color> colors;
+
+        struct CostCell
+        {
+            int x, y, z, g;
+        };
+        std::queue<CostCell> cells;
+        Grid3<bool> visited(grid()->numCellsX(), grid()->numCellsY(), grid()->numCellsZ(), false);
+        visited(m_goal_x2, m_goal_y2, m_goal_z2) = true;
+        cells.push({m_goal_x2, m_goal_y2, m_goal_z2, 0});
+        while (!cells.empty()) {
+            CostCell c = cells.front();
+            cells.pop();
+
+            if (c.g > max_cost || points.size() >= max_points) {
+                break;
+            }
+
+            {
+                double cost_pct = (double)c.g / (double)max_cost;
+
+                visual::Color color = visual::MakeColorHSV(300.0 - 300.0 * cost_pct);
+
+                auto clamp = [](double d, double lo, double hi) {
+                    if (d < lo) {
+                        return lo;
+                    } else if (d > hi) {
+                        return hi;
+                    } else {
+                        return d;
+                    }
+                };
+
+                color.r = clamp(color.r, 0.0f, 1.0f);
+                color.g = clamp(color.g, 0.0f, 1.0f);
+                color.b = clamp(color.b, 0.0f, 1.0f);
+
+                Eigen::Vector3d p;
+                grid()->gridToWorld(c.x, c.y, c.z, p.x(), p.y(), p.z());
+                if (std::fabs(p.z() -  3.73) < 1) {
+
+                    points.push_back(p);
+
+                    colors.push_back(color);
+                }
+            }
+
+//        visited(c.x, c.y, c.z) = true;
+
+            const int d = m_cost_per_cell * m_bfs[GroupType::R5M]->getDistance(c.x, c.y, c.z);
+
+            for (int dx = -1; dx <= 1; ++dx) {
+                for (int dy = -1; dy <= 1; ++dy) {
+                    for (int dz = -1; dz <= 1; ++dz) {
+                        if (!(dx | dy | dz)) {
+                            continue;
+                        }
+
+                        int sx = c.x + dx;
+                        int sy = c.y + dy;
+                        int sz = c.z + dz;
+
+                        // check if neighbor is valid
+                        if (!m_bfs[GroupType::R5M]->inBounds(sx, sy, sz) || m_bfs[GroupType::R5M]->isWall(sx, sy, sz)) {
+                            continue;
+                        }
+
+                        // check if cost can be improved
+                        if (visited(sx, sy, sz)) {
+                            continue;
+                        }
+
+                        visited(sx, sy, sz) = true;
+
+                        int dd = m_cost_per_cell * m_bfs[GroupType::R5M]->getDistance(sx, sy, sz);
+                        cells.push({sx, sy, sz, dd});
+                    }
+                }
+            }
+        }
+
+        return visual::MakeCubesMarker(
+                std::move(points),
+                0.5 * grid()->resolution(),
+                std::move(colors),
+                grid()->getReferenceFrame(),
+                "bfs_values2");
+    }
 void MultiBfsHeuristic::syncGridAndBfs()
 {
+
+    ROS_ERROR_STREAM("check SYNC GRID AND BFS. enter to  continue");
+
     const int xc = grid()->numCellsX();
     const int yc = grid()->numCellsY();
     const int zc = grid()->numCellsZ();
-    std::unique_ptr<BFS_3D> temp_base, temp_arm;
+    std::unique_ptr<BFS_3D> temp_base, temp_arm, temp_r5m;
     temp_base.reset(new BFS_3D(xc, yc, zc));
     m_bfs.push_back(std::move(temp_base));
     temp_arm.reset(new BFS_3D(xc, yc, zc));
     m_bfs.push_back(std::move(temp_arm));
+    temp_r5m.reset(new BFS_3D(xc, yc, zc));
+    m_bfs.push_back(std::move(temp_r5m));
 
     const int cell_count = xc * yc * zc;
     int wall_count = 0, base_wall_count = 0;
@@ -555,8 +683,10 @@ void MultiBfsHeuristic::syncGridAndBfs()
                 const double radius = m_inflation_radius;
                 if (grid()->getDistance(x, y, z) <= radius) {
                     m_bfs[GroupType::ARM]->setWall(x, y, z);
+                    m_bfs[GroupType::R5M]->setWall(x, y, z);
                     ++wall_count;
                 }
+
                 if(grid()->getDistance(x, y, z) <= m_base_inflation_radius)
                 {
                     m_bfs[GroupType::BASE]->setWall(x,y,z);
@@ -572,6 +702,7 @@ void MultiBfsHeuristic::syncGridAndBfs()
 
 int MultiBfsHeuristic::getBfsCostToGoal(const BFS_3D& bfs, int x, int y, int z) const
 {
+    ROS_WARN_STREAM("USing get BFS Cost To Goal. Not modified, but shouldnt I guess");
     if (!bfs.inBounds(x, y, z)) {
         return Infinity;
     }

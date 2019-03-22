@@ -154,21 +154,37 @@ int BfsHeuristic::GetGoalHeuristic(int state_id)
         return 0;
     }
 
-    Eigen::Vector3d p;
-    if (!m_pp->projectToPoint(state_id, p)) {
+    std::string ee_link;
+
+
+
+    Eigen::Vector3d p,p2;
+    if (!m_pp->projectToPoint(state_id,"ECA_Jaw", p)) {
+        return 0;
+    }
+    if (!m_pp->projectToPoint(state_id,"R5M_Jaw", p2)) {
         return 0;
     }
 
-    Eigen::Vector3i dp;
+    Eigen::Vector3i dp,dp2;
     grid()->worldToGrid(p.x(), p.y(), p.z(), dp.x(), dp.y(), dp.z());
+
+    grid()->worldToGrid(p2.x(), p2.y(), p2.z(), dp2.x(), dp2.y(), dp2.z());
 
 
     int cost = getBfsCostToGoal(*m_bfs, dp.x(), dp.y(), dp.z());
+    int cost2 = getBfsCostToGoal(*m_bfs, dp2.x(), dp2.y(), dp2.z());
+
+
+    ROS_INFO_STREAM("ECA POS:"<<p.x()<<" "<<p.y()<<" "<<p.z());
+    ROS_INFO_STREAM("R5M POS:"<<p2.x()<<" "<<p2.y()<<" "<<p2.z());
 
     ROS_INFO_STREAM("HEURISTIC: "<<dp.x()<<", "<<dp.y()<<", "<<dp.z()<<"COST: "<<cost);
-
-    return cost;
+    ROS_INFO_STREAM("HEURISTIC2: "<<dp2.x()<<", "<<dp2.y()<<", "<<dp2.z()<<"COST2: "<<cost2);
+    ROS_INFO_STREAM("MAX HEURISTIC: "<<std::max(cost,cost2));
+    return std::max(cost,cost2);
 }
+
 
 int BfsHeuristic::GetStartHeuristic(int state_id)
 {

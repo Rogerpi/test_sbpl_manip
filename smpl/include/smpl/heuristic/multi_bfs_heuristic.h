@@ -38,6 +38,7 @@ public:
 
     auto getWallsVisualization() const -> visual::Marker;
     auto getValuesVisualization() -> visual::Marker;
+    auto getValuesVisualization2() -> visual::Marker;
 
     /// \name Required Public Functions from RobotHeuristic
     ///@{
@@ -79,7 +80,12 @@ private:
     int m_goal_x = -1;
     int m_goal_y = -1;
     int m_goal_z = -1;
+
+    int m_goal_x2 = -1;
+    int m_goal_y2 = -1;
+    int m_goal_z2 = -1;
     std::vector<double> goal_config;
+    std::vector<double> goal_config2;
 
     void syncGridAndBfs();
     //int getBfsCostToGoal(const BFS_3D& bfs, int x, int y, int z,GroupType planning_group) const;

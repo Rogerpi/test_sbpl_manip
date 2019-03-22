@@ -139,6 +139,13 @@ public:
         RobotState& solution,
         ik_option::IkOption option = ik_option::UNRESTRICTED) = 0;
 
+    virtual bool computeIK(
+            const std::vector<double>& pose,
+            const RobotState& start,
+            RobotState& solution, const std::string & arm,
+            ik_option::IkOption option = ik_option::UNRESTRICTED) {
+        return computeIK(pose,start,solution,option);
+    }
  /*   virtual bool computeIK(
             const std::vector<double>& pose,
             const RobotState& start,
@@ -152,11 +159,14 @@ public:
             std::vector<RobotState>& solutions,
             ik_option::IkOption option = ik_option::UNRESTRICTED) = 0;
 
-  /*  virtual bool computeIK(
+    virtual bool computeIK(
             const std::vector<double>& pose,
             const RobotState& start,
-            std::vector<RobotState>& solutions, int id,
-            ik_option::IkOption option = ik_option::UNRESTRICTED) = 0;*/
+            std::vector<RobotState>& solutions, const std::string & arm,
+            ik_option::IkOption option = ik_option::UNRESTRICTED) {
+            return computeIK(pose,start,solutions,option);
+
+    }
 };
 
 class RedundantManipulatorInterface : public virtual RobotModel

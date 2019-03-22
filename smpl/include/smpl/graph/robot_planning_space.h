@@ -226,6 +226,10 @@ public:
 
     virtual bool projectToPoint(int state_id, Eigen::Vector3d& pos) = 0;
 
+    virtual bool projectToPoint(int state_id, const std::string& ee_link, Eigen::Vector3d& pos) {
+        projectToPoint(state_id,pos);
+    }
+
     virtual bool projectToBasePoint(int state_id, Eigen::Vector3d& pos)
     {
         return projectToPoint(state_id, pos);
@@ -249,7 +253,21 @@ public:
         return true;
     }
 
+    bool projectToPoint(int state_id, const std::string& ee_link, Eigen::Vector3d& pos)
+    {
+        Eigen::Affine3d pose;
+        if (!projectToPose(state_id, ee_link, pose)) {
+            return false;
+        }
+        pos = pose.translation();
+        return true;
+    }
+
     virtual bool projectToPose(int state_id, Eigen::Affine3d& pose) = 0;
+
+    virtual bool projectToPose(int state_id, const std::string& ee_link, Eigen::Affine3d & pose) {
+        return projectToPose(state_id, pose);
+    }
 };
 
 class ExtractRobotStateExtension : public virtual Extension

@@ -98,6 +98,7 @@ bool ManipLattice::init(
     m_fk_iface = _robot->getExtension<ForwardKinematicsInterface>();
     m_ik_iface = _robot->getExtension<InverseKinematicsInterface>();
 
+
     //dual
     //m_fk_iface2 = _robot2->getExtension<ForwardKinematicsInterface>();
     //m_ik_iface2 = _robot2->getExtension<InverseKinematicsInterface>();
@@ -263,14 +264,10 @@ void ManipLattice::GetSuccs(
 
     std::vector<Action> actions;
     ActionsWeight weights;
-    auto before_apply = clock::now();
     if (!m_actions->apply(parent_entry->state, actions,weights,-1)) {
-        apply_time += to_seconds(clock::now() - before_apply);
         SMPL_DEBUG("Failed to get actions");
         return;
     }
-    apply_time += to_seconds(clock::now() - before_apply);
-    ROS_INFO_STREAM("APPLY TIME: "<<apply_time);
     SMPL_DEBUG_NAMED(params()->expands_log, "  actions: %zu", actions.size());
 
     // check actions for validity
@@ -477,10 +474,12 @@ void ManipLattice::GetSuccsByGroup(
         int distToObstCells;
         double start = ros::Time::now().toSec();
         bool test;
+        ROS_WARN_STREAM("--------------Check action----------");
         if(clearance_threshold_== 0) 
             test = checkAction(parent_entry->state, action);
         else
             test = checkAction(parent_entry->state, action, distToObst, distToObstCells);
+        ROS_WARN_STREAM("----------END Check action----------");
         double duration = ros::Time::now().toSec() - start;
         //ROS_ERROR_STREAM("duration is "<<duration);
         if (!test) {
@@ -489,8 +488,10 @@ void ManipLattice::GetSuccsByGroup(
 
         
         // compute destination coords
+        ROS_WARN_STREAM("-----------state To Coord----------");
         stateToCoord(action.back(), succ_coord);
 
+        ROS_WARN_STREAM("--------END state To Coord----------");
         // get the successor
 
         // check if hash entry already exists, if not then create one
@@ -499,7 +500,9 @@ void ManipLattice::GetSuccsByGroup(
         succ_entry->source = group;
 
         // check if this state meets the goal criteria
+        ROS_WARN_STREAM("-----------is GOAL----------");
         const bool is_goal_succ = isGoal(action.back());
+        ROS_WARN_STREAM("--------end is goal----------");
         if (is_goal_succ) {
             // update goal state
             ++goal_succ_count;
@@ -659,14 +662,19 @@ void ManipLattice::setSelectedStartId (int start_id)
 
 double ManipLattice::getDistanceToGoal(int state_id)
 {
+    ROS_WARN_STREAM("Using get Distance To Goal. Needs to redefine what is the distance, but its already calculated for both arms. Press Enter to continue... or to crash");
+    //std::getchar();
     std::vector<double> state = m_states[state_id]->state;
     std::vector<double> goal_state = m_states[m_start_state_id]->state;
     std::vector<bool> isGoalRegion;
     isGoalRegion.resize(state.size(),0);
-    double overallDistance = 0.0;
-    Eigen::Affine3d goal_pose, current_pose;
-    projectToPose(state_id,current_pose);
-    projectToPose(m_start_state_id,goal_pose);
+    double overallDistance  = 0.0;
+    double overallDistance2 = 0.0;
+    Eigen::Affine3d goal_pose,goal_pose2, current_pose, current_pose2;
+    projectToPose(state_id,"ECA_Jaw",current_pose);
+    projectToPose(m_start_state_id,"ECA_Jaw",goal_pose);
+    projectToPose(m_start_state_id,"R5M_Jaw",goal_pose2);
+
     ROS_INFO_STREAM("start state id "<<m_start_state_id);
     /*for (int i = 0; i < state.size(); i++) 
     {
@@ -699,6 +707,11 @@ double ManipLattice::getDistanceToGoal(int state_id)
     overallDistance+= pow(goal_pose.translation()[1]-current_pose.translation()[1],2);
     overallDistance+= pow(goal_pose.translation()[2]-current_pose.translation()[2],2);
     overallDistance = sqrt(overallDistance);
+
+    overallDistance2+= pow(goal_pose2.translation()[0]-current_pose2.translation()[0],2);
+    overallDistance2+= pow(goal_pose2.translation()[1]-current_pose2.translation()[1],2);
+    overallDistance2+= pow(goal_pose2.translation()[2]-current_pose2.translation()[2],2);
+    overallDistance2 = sqrt(overallDistance2);
 
     
     /*double start_to_goal_dist = pow((goal().tgt_off_pose[0])-goal_pose.translation()[0],2);
@@ -1030,6 +1043,8 @@ void ManipLattice::GetLazySuccs(
     std::vector<int>* costs,
     std::vector<bool>* true_costs)
 {
+    ROS_WARN_STREAM("On Get Lazy succs, not modified for dual arm. control to continue");
+    std::getchar();
     GetLazySuccsStopwatch.start();
     PROFAUTOSTOP(GetLazySuccsStopwatch);
 
@@ -1108,6 +1123,10 @@ Stopwatch GetTrueCostStopwatch("GetTrueCost", 10);
 
 int ManipLattice::GetTrueCost(int parentID, int childID)
 {
+
+    ROS_WARN_STREAM("Get true cost called, not made for dual arm. control to continue");
+    std::getchar();
+
     GetTrueCostStopwatch.start();
     PROFAUTOSTOP(GetTrueCostStopwatch);
 
@@ -1188,6 +1207,7 @@ const RobotState& ManipLattice::extractState(int state_id)
 
 bool ManipLattice::projectToPose(int state_id, Eigen::Affine3d& pose)
 {
+    ROS_ERROR_STREAM("in wrong projectToPose (probably it apply)");
     if (state_id == getGoalStateID()) {
         assert(goal().tgt_off_pose.size() >= 6);
         Eigen::Matrix3d R;
@@ -1220,8 +1240,44 @@ bool ManipLattice::projectToPose(int state_id, Eigen::Affine3d& pose)
     return true;
 }
 
+    bool ManipLattice::projectToPose(int state_id, const std::string& ee_link, Eigen::Affine3d& pose)
+    {
+        ROS_INFO_STREAM("In dual projectTopose for: "<<ee_link);
+        if (state_id == getGoalStateID()) {
+            assert(goal().tgt_off_pose.size() >= 6);
+            Eigen::Matrix3d R;
+            angles::from_euler_zyx(
+                    goal().tgt_off_pose[5],
+                    goal().tgt_off_pose[4],
+                    goal().tgt_off_pose[3],
+                    R);
+            pose =
+                    Eigen::Translation3d(
+                            goal().tgt_off_pose[0],
+                            goal().tgt_off_pose[1],
+                            goal().tgt_off_pose[2]) *
+                    Eigen::Affine3d(R);
+            return true;
+        }
+
+        std::vector<double> vpose;
+        if (!computePlanningFrameFK(m_states[state_id]->state, vpose,ee_link)) {
+                    SMPL_ERROR("Failed to compute fk for state %d", state_id);
+            return false;
+        }
+
+        Eigen::Matrix3d R;
+        angles::from_euler_zyx(vpose[5], vpose[4], vpose[3], R);
+        pose =
+                Eigen::Translation3d(vpose[0], vpose[1], vpose[2]) *
+                Eigen::Affine3d(R);
+
+        return true;
+    }
+
 bool ManipLattice::projectToBasePoint(int state_id, Eigen::Vector3d& pos)
-{   
+{
+    ROS_ERROR_STREAM("Call to project To base point, not done for dual");
     if(state_id == m_goal_state_id)
     {   
         std::vector<double> goalConfig(robot()->jointVariableCount());
@@ -1229,6 +1285,8 @@ bool ManipLattice::projectToBasePoint(int state_id, Eigen::Vector3d& pos)
         pos[0] = goalConfig[0];
         pos[1] = goalConfig[1];
         pos[2] = goalConfig[2];
+        ROS_WARN_STREAM("goal state id");
+        std::getchar();
     }
     else
     {
@@ -1395,23 +1453,18 @@ bool ManipLattice::computePlanningFrameFK(
 bool ManipLattice::computePlanningFrameFK(
 
         const RobotState& state,
-        std::vector<double>& pose, bool first) const
+        std::vector<double>& pose, const std::string& ee_link) const
 {
 
-    ROS_INFO_STREAM("DUAL: COMPUTE PLANNING FRAME FK");
+    ROS_INFO_STREAM("DUAL: COMPUTE PLANNING FRAME FK: "<<ee_link);
     assert(state.size() == robot()->jointVariableCount());
     assert(m_fk_iface);
 
-    if (first) {
-        if (!m_fk_iface->computeFK(state, "ECA_Jaw", pose)) {
-            return false;
-        }
+
+    if (!m_fk_iface->computeFK(state, ee_link, pose)) {
+        return false;
     }
-    else{
-        if (!m_fk_iface->computeFK(state, "R5M_Jaw", pose)) {
-            return false;
-        }
-    }
+
 
     pose = getTargetOffsetPose(pose);
 
@@ -1426,6 +1479,7 @@ bool ManipLattice::computeBaseFrameIK(
         RobotState& state) const
 {
     ROS_ERROR_STREAM("COMPUTE BASE FRAME IK");
+    std::getchar();
     assert(m_ik_iface);
     std::vector<RobotState> states;
     RobotState seed(robot()->jointVariableCount(), 0);
@@ -1435,8 +1489,22 @@ bool ManipLattice::computeBaseFrameIK(
     //state  = states[0];
 }
 
+bool ManipLattice::computeBaseFrameIK(
+        const std::vector<double>& pose,
+        RobotState& state, const std::string & arm) const {
+    ROS_INFO_STREAM("DUAL: COMPUTE BASE FRAME IK");
+    assert(m_ik_iface);
+    std::vector<RobotState> states;
+    RobotState seed(robot()->jointVariableCount(), 0);
+    if (!m_ik_iface->computeIK(pose, seed, state, arm)) {
+                SMPL_DEBUG_STREAM(
+                "No valid IK solution for the goal pose " << pose[0] << "," << pose[1] << "," << pose[2] << ","
+                                                          << pose[3] << "," << pose[4] << "," << pose[5]);
+    }
+}
 
-int ManipLattice::cost(
+
+        int ManipLattice::cost(
     ManipLatticeState* HashEntry1,
     ManipLatticeState* HashEntry2,
     bool bState2IsGoal) const
@@ -1664,11 +1732,16 @@ bool ManipLattice::isGoal(const RobotState& state)
     }   break;
     case GoalType::XYZ_RPY_GOAL:
     {
+        ROS_INFO_STREAM("Goal XYZ RPY");
         // get pose of planning link
-        std::vector<double> pose;
+        std::vector<double> pose, pose2;
         RobotState newState = state;
-        if (!computePlanningFrameFK(state, pose)) {
-            SMPL_DEBUG("Failed to compute FK for planning frame");
+        if (!computePlanningFrameFK(state, pose, "ECA_Jaw")) {
+                    SMPL_DEBUG("Failed to compute FK for planning frame");
+            return false;
+        }
+        if (!computePlanningFrameFK(state, pose2, "R5M_Jaw")) {
+                    SMPL_DEBUG("Failed to compute FK for planning frame");
             return false;
         }
         std::vector<double> goalPose;
@@ -1679,13 +1752,20 @@ bool ManipLattice::isGoal(const RobotState& state)
         goalPose[3]=goal().tgt_off_pose[3];
         goalPose[4]=goal().tgt_off_pose[4];
         goalPose[5]=goal().tgt_off_pose[5];
-        computeBaseFrameIK(goalPose,newState);
+        //computeBaseFrameIK(goalPose,newState);
         const double dx = fabs(pose[0] - goal().tgt_off_pose[0]);
         const double dy = fabs(pose[1] - goal().tgt_off_pose[1]);
         const double dz = fabs(pose[2] - goal().tgt_off_pose[2]);
+
+        const double dx2 = fabs(pose2[0] - goal().tgt_off_pose[0]);
+        const double dy2 = fabs(pose2[1] - goal().tgt_off_pose[1]);
+        const double dz2 = fabs(pose2[2] - goal().tgt_off_pose[2]);
         if (dx <= goal().xyz_tolerance[0] &&
             dy <= goal().xyz_tolerance[1] &&
-            dz <= goal().xyz_tolerance[2])
+            dz <= goal().xyz_tolerance[2] &&
+                dx2 <= goal().xyz_tolerance[0] &&
+                dy2 <= goal().xyz_tolerance[1] &&
+                dz2 <= goal().xyz_tolerance[2])
         {
             // log the amount of time required for the search to get close to the goal
             if (!m_near_goal) {
@@ -1708,14 +1788,27 @@ bool ManipLattice::isGoal(const RobotState& state)
                     Eigen::AngleAxisd(pose[5], Eigen::Vector3d::UnitZ()) *
                     Eigen::AngleAxisd(pose[4], Eigen::Vector3d::UnitY()) *
                     Eigen::AngleAxisd(pose[3], Eigen::Vector3d::UnitX()));
+
+            Eigen::Quaterniond qg2(qg);
+
+            Eigen::Quaterniond q2(
+                Eigen::AngleAxisd(pose2[5], Eigen::Vector3d::UnitZ()) *
+                Eigen::AngleAxisd(pose2[4], Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(pose2[3], Eigen::Vector3d::UnitX()));
+
             if (q.dot(qg) < 0.0) {
                 qg = Eigen::Quaterniond(-qg.w(), -qg.x(), -qg.y(), -qg.z());
             }
 
+            if (q2.dot(qg2) < 0.0) {
+                qg2 = Eigen::Quaterniond(-qg2.w(), -qg2.x(), -qg2.y(), -qg2.z());
+            }
+
 //            const double theta = angles::normalize_angle(Eigen::AngleAxisd(qg.conjugate() * q).angle());
             const double theta = angles::normalize_angle(2.0 * acos(q.dot(qg)));
+            const double theta2 = angles::normalize_angle(2.0 * acos(q2.dot(qg2)));
             SMPL_DEBUG_STREAM("Theta vs. goal tolerance "<<theta<<","<<goal().rpy_tolerance[0]);
-            if (theta < goal().rpy_tolerance[0]) {
+            if (theta < goal().rpy_tolerance[0] && theta2 < goal().rpy_tolerance[0]) {
                 SMPL_DEBUG("Goal state found");
                 return true;
             }
@@ -1723,16 +1816,24 @@ bool ManipLattice::isGoal(const RobotState& state)
     }   break;
     case GoalType::XYZ_GOAL:
     {
+        ROS_INFO_STREAM("Goal XYZ");
         // get pose of planning link
-        std::vector<double> pose;
-        if (!computePlanningFrameFK(state, pose)) {
+        std::vector<double> pose,pose2;
+        if (!computePlanningFrameFK(state, pose,"ECA_Jaw")) {
             SMPL_DEBUG("Failed to compute FK for planning frame");
+            return false;
+        }
+        if (!computePlanningFrameFK(state, pose2,"R5M_Jaw")) {
+                    SMPL_DEBUG("Failed to compute FK for planning frame");
             return false;
         }
 
         if (fabs(pose[0] - goal().tgt_off_pose[0]) <= goal().xyz_tolerance[0] &&
             fabs(pose[1] - goal().tgt_off_pose[1]) <= goal().xyz_tolerance[1] &&
-            fabs(pose[2] - goal().tgt_off_pose[2]) <= goal().xyz_tolerance[2])
+            fabs(pose[2] - goal().tgt_off_pose[2]) <= goal().xyz_tolerance[2] &&
+                fabs(pose2[0] - goal().tgt_off_pose[0]) <= goal().xyz_tolerance[0] &&
+                fabs(pose2[1] - goal().tgt_off_pose[1]) <= goal().xyz_tolerance[1] &&
+                fabs(pose2[2] - goal().tgt_off_pose[2]) <= goal().xyz_tolerance[2])
         {
             return true;
         }
@@ -2072,6 +2173,9 @@ bool ManipLattice::extractPath(
     if (idpath.empty()) {
         return true;
     }
+
+    ROS_WARN_STREAM("Extract path calls apply not for dual arm. check when you reach here ");
+    std::getchar();
 
 
     SMPL_INFO_STREAM("Extracting Path & saving data");

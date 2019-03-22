@@ -137,11 +137,19 @@ protected:
         Action& action, bool isPredecessor);
 
     bool computeIkAction(
-        const RobotState& state,
-        const std::vector<double>& goal,
-        double dist_to_goal,
-        ik_option::IkOption option,
-        std::vector<Action>& actions);
+            const RobotState& state,
+            const std::vector<double>& goal,
+            double dist_to_goal,
+            ik_option::IkOption option,
+            std::vector<Action>& actions);
+
+    bool computeIkAction(
+            const RobotState& state,
+            const std::vector<double>& goal,
+            double dist_to_goal,
+            ik_option::IkOption option,
+            const std::string & arm,
+            std::vector<Action>& actions);
 
     virtual bool getAction(
         const RobotState& parent,

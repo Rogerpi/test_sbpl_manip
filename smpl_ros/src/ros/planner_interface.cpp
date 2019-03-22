@@ -1665,6 +1665,7 @@ bool PlannerInterface::plan(double allowed_time, std::vector<RobotState>& path)
     // scenario
     SV_SHOW_INFO_NAMED("bfs_walls", getBfsWallsVisualization());
     SV_SHOW_INFO_NAMED("bfs_values", getBfsValuesVisualization());
+    SV_SHOW_INFO_NAMED("bfs_values2",getBfsValuesVisualization2());
 
     ROS_WARN_NAMED(PI_LOGGER, "Planning!!!!!");
     bool b_ret = false;
@@ -2473,6 +2474,22 @@ auto PlannerInterface::getBfsValuesVisualization() const -> visual::Marker
         return visual::Marker{ };
     }
 }
+
+    auto PlannerInterface::getBfsValuesVisualization2() const -> visual::Marker
+    {
+        if (m_heuristics.empty()) {
+            return visual::Marker{ };
+        }
+
+        auto first = m_heuristics.begin();
+
+        if(auto* mhbfs = dynamic_cast<MultiBfsHeuristic*>(first->second.get())){
+            return mhbfs->getValuesVisualization2();
+        } else {
+            return visual::Marker{ };
+        }
+    }
+
 
 auto PlannerInterface::getBfsWallsVisualization() const -> visual::Marker
 {

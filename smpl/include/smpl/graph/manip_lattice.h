@@ -151,6 +151,8 @@ public:
     bool projectToPose(int state_id, Eigen::Affine3d& pos) override;
     ///@}
 
+    bool projectToPose(int state_id, const std::string& ee_link, Eigen::Affine3d& pos) override;
+
     bool projectToBasePoint(int state_id, Eigen::Vector3d& pos);
     /// \name Required Public Functions from RobotPlanningSpace
     ///@{
@@ -235,13 +237,16 @@ protected:
 
     bool computePlanningFrameFK(
             const RobotState& state,
-            std::vector<double>& pose, bool first) const;
+            std::vector<double>& pose, const std::string& ee_link) const;
 
 
     bool computeBaseFrameIK(
         const std::vector<double>& pose,
         RobotState& state) const;
 
+    bool computeBaseFrameIK(
+            const std::vector<double>& pose,
+            RobotState& state, const std::string & arm) const;
 
     int cost(
         ManipLatticeState* HashEntry1,

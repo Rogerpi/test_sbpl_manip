@@ -342,6 +342,7 @@ void ManipLatticeActionSpace::updateStart(const RobotState& start)
 
 void ManipLatticeActionSpace::updateGoal(const GoalConstraint& goal)
 {
+    ROS_INFO_STREAM("MANIP LATTICE ACTION SPACE UPDATE GOAL");
     RobotPlanningSpaceObserver::updateGoal(goal);
 }
 
@@ -364,8 +365,10 @@ bool ManipLatticeActionSpace::apply(
     double start_dist = 0.0;
     if (planningSpace()->numHeuristics() > 0) {
         RobotHeuristic* h = planningSpace()->heuristic(0);
+        ROS_WARN_STREAM("Get metric goa ldistance gonna be called, for switching between short and long motion primitives");
         goal_dist = h->getMetricGoalDistance(pose[0], pose[1], pose[2]);
-        start_dist = h->getMetricStartDistance(pose[0], pose[1], pose[2]);
+        //start_dist = h->getMetricStartDistance(pose[0], pose[1], pose[2]);
+        start_dist = 0; //Is not used at all, lets avoid using a function that is not implemented for dual arm manipulation
     }
 
     std::vector<Action> act;
@@ -387,12 +390,18 @@ bool ManipLatticeActionSpace::apply(
     const RobotState& parent,
     std::vector<Action>& actions, ActionsWeight& weights, int group)
 {
+    ROS_INFO_STREAM("-------------APPLY-------------------");
+    ROS_WARN_STREAM("Group: "<<group);
     if (!m_fk_iface) {
         return false;
     }
 
     std::vector<double> pose;
-    if (!m_fk_iface->computePlanningLinkFK(parent, pose)) {
+
+    //std::string ee_name = (group == R5M) ? "R5M_Jaw" : "ECA_Jaw";
+
+    if (!m_fk_iface->computePlanningLinkFK(parent, pose)) { //old
+    //if (!m_fk_iface->computeFK(parent, ee_name, pose))
         SMPL_ERROR("Failed to compute forward kinematics for planning link");
         return false;
     }
@@ -402,8 +411,10 @@ bool ManipLatticeActionSpace::apply(
     double start_dist = 0.0;
     if (planningSpace()->numHeuristics() > 0) {
         RobotHeuristic* h = planningSpace()->heuristic(0);
+        ROS_WARN_STREAM("Get metric goa ldistance gonna be called, for switching between short and long motion primitives");
+
         goal_dist = h->getMetricGoalDistance(pose[0], pose[1], pose[2]);
-        start_dist = h->getMetricStartDistance(pose[0], pose[1], pose[2]);
+        //start_dist = h->getMetricStartDistance(pose[0], pose[1], pose[2]);
     }
 
     std::vector<Action> act;
@@ -456,6 +467,8 @@ bool ManipLatticeActionSpace::apply(
             SMPL_INFO_STREAM("Action ["<<i<<"]["<<j<<"]["<<k<<" is "<<actions[i][j][k]);
         }
     }*/
+
+    ROS_INFO_STREAM("------------------END APPLY---------------------");
 
     return true;
 }
@@ -523,6 +536,7 @@ bool ManipLatticeActionSpace::getAction(
     const MotionPrimitive& mp,
     std::vector<Action>& actions, bool isPredecessor)
 {
+    ROS_WARN_STREAM("Group: "<<mp.group <<" R5M Group "<<sbpl::motion::GroupType::R5M);
     if (!mprimActive(start_dist, goal_dist, mp.type)) {
         ROS_DEBUG_STREAM("prim not active");
         return false;
@@ -544,31 +558,57 @@ bool ManipLatticeActionSpace::getAction(
     }
     case MotionPrimitive::SNAP_TO_RPY:
     {
-        return computeIkAction(
+        if (mp.group == sbpl::motion::GroupType::R5M)
+            return computeIkAction(
                 parent,
                 goal_pose,
                 goal_dist,
-                ik_option::RESTRICT_XYZ,
+                ik_option::RESTRICT_XYZ, "R5M",
                 actions);
-    }
-    case MotionPrimitive::SNAP_TO_XYZ:
-    {
-        return computeIkAction(
-                parent,
-                goal_pose,
-                goal_dist,
-                ik_option::RESTRICT_RPY,
-                actions);
-    }
-    case MotionPrimitive::SNAP_TO_XYZ_RPY:
-    {
-        if (planningSpace()->goal().type != GoalType::JOINT_STATE_GOAL) {
+        else
             return computeIkAction(
                     parent,
                     goal_pose,
                     goal_dist,
-                    ik_option::UNRESTRICTED,
+                    ik_option::RESTRICT_XYZ, "ECA",
                     actions);
+
+    }
+    case MotionPrimitive::SNAP_TO_XYZ:
+    {
+        if (mp.group == sbpl::motion::GroupType::R5M)
+            return computeIkAction(
+                parent,
+                goal_pose,
+                goal_dist,
+                ik_option::RESTRICT_RPY, "R5M",
+                actions);
+        else
+            return computeIkAction(
+                    parent,
+                    goal_pose,
+                    goal_dist,
+                    ik_option::RESTRICT_RPY, "ECA",
+                    actions);
+
+    }
+    case MotionPrimitive::SNAP_TO_XYZ_RPY:
+    {
+        if (planningSpace()->goal().type != GoalType::JOINT_STATE_GOAL) {
+            if (mp.group == sbpl::motion::GroupType::R5M)
+                return computeIkAction(
+                    parent,
+                    goal_pose,
+                    goal_dist,
+                    ik_option::UNRESTRICTED, "R5M",
+                    actions);
+            else
+                return computeIkAction(
+                        parent,
+                        goal_pose,
+                        goal_dist,
+                        ik_option::UNRESTRICTED, "ECA",
+                        actions);
         } else {
             // goal is 7dof; instead of computing  IK, use the goal itself as
             // the IK solution
@@ -674,6 +714,48 @@ bool ManipLatticeActionSpace::computeIkAction(
     return true;
 }
 
+    bool ManipLatticeActionSpace::computeIkAction(
+            const RobotState& state,
+            const std::vector<double>& goal,
+            double dist_to_goal,
+            ik_option::IkOption option, const std::string & arm,
+            std::vector<Action>& actions)
+    {
+    ROS_WARN_STREAM("compute ik action "<<arm);
+        if (!m_ik_iface) {
+            return false;
+        }
+
+        if (m_use_multiple_ik_solutions) {
+            //get actions for multiple ik solutions
+            std::vector<std::vector<double>> solutions;
+            if (!m_ik_iface->computeIK(goal, state, solutions, arm, option)) {
+                        SMPL_DEBUG("IK '%s' failed. (dist_to_goal: %0.3f)  (goal: xyz: %0.3f %0.3f %0.3f rpy: %0.3f %0.3f %0.3f)",
+                                   to_cstring(option), dist_to_goal, goal[0], goal[1], goal[2], goal[3], goal[4], goal[5]);
+                return false;
+            }
+            actions.resize(solutions.size());
+            for (size_t a = 0; a < actions.size(); a++){
+                actions[a].resize(1);
+                actions[a][0] = solutions[a];
+            }
+        } else {
+            //get single action for single ik solution
+            std::vector<double> ik_sol;
+            if (!m_ik_iface->computeIK(goal, state, ik_sol, arm)) {
+                        SMPL_DEBUG("IK '%s' failed. (dist_to_goal: %0.3f)  (goal: xyz: %0.3f %0.3f %0.3f rpy: %0.3f %0.3f %0.3f)", to_cstring(option), dist_to_goal, goal[0], goal[1], goal[2], goal[3], goal[4], goal[5]);
+                return false;
+            }
+            actions.resize(1);
+            actions[0].resize(1);
+            actions[0][0] = ik_sol;
+        }
+
+        return true;
+    }
+
+
+    //Not using start_dist for anything
 bool ManipLatticeActionSpace::mprimActive(
     double start_dist,
     double goal_dist,

@@ -150,6 +150,7 @@ public:
 
     auto getBfsWallsVisualization() const -> visual::Marker;
     auto getBfsValuesVisualization() const -> visual::Marker;
+    auto getBfsValuesVisualization2() const -> visual::Marker;
 
     auto makePathVisualization(const std::vector<RobotState>& path) const
         -> std::vector<visual::Marker>;
