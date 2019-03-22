@@ -244,25 +244,28 @@ void ManipLatticeActionSpace::clear()
     MotionPrimitive mprim;
 
 
+    std::vector<sbpl::motion::GroupType> groups({sbpl::motion::GroupType::BASE,sbpl::motion::GroupType::ARM,sbpl::motion::GroupType::R5M});
 
-    mprim.type = MotionPrimitive::SNAP_TO_RPY;
-    mprim.action.clear();
+    for (const auto gtype:groups) {
+        mprim.type = MotionPrimitive::SNAP_TO_RPY;
+        mprim.action.clear();
 
-    mprim.group = sbpl::motion::GroupType::ANY;
-    mprim.weight = 0.5;
-    m_mprims.push_back(mprim);
+        mprim.group = gtype;
+        mprim.weight = 0.5;
+        m_mprims.push_back(mprim);
 
-    mprim.type = MotionPrimitive::SNAP_TO_XYZ;
-    mprim.action.clear();
-    mprim.group = sbpl::motion::GroupType::ANY;
-    mprim.weight = 0.5;
-    m_mprims.push_back(mprim);
+        mprim.type = MotionPrimitive::SNAP_TO_XYZ;
+        mprim.action.clear();
+        mprim.group = gtype;
+        mprim.weight = 0.5;
+        m_mprims.push_back(mprim);
 
-    mprim.type = MotionPrimitive::SNAP_TO_XYZ_RPY;
-    mprim.action.clear();
-    mprim.group = sbpl::motion::GroupType::ANY;
-    mprim.weight = 0.5;
-    m_mprims.push_back(mprim);
+        mprim.type = MotionPrimitive::SNAP_TO_XYZ_RPY;
+        mprim.action.clear();
+        mprim.group = gtype;
+        mprim.weight = 0.5;
+        m_mprims.push_back(mprim);
+    }
 
     for (int i = 0; i < MotionPrimitive::NUMBER_OF_MPRIM_TYPES; ++i) {
         m_mprim_enabled[i] = (i == MotionPrimitive::Type::LONG_DISTANCE);
