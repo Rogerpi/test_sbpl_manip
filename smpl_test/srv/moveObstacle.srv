@@ -1,5 +1,0 @@
-int32 xStart
-int32 xEnd
-int32 yIdx
----
-int32 pstatus
