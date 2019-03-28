@@ -73,7 +73,8 @@ public:
         m_size_y(size_y),
         m_size_z(size_z),
         m_res(res)
-    { }
+    {
+    }
 
     virtual ~DistanceMapInterface() { }
 

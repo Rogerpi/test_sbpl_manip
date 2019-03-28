@@ -106,6 +106,13 @@ bool RobotPlanningSpace::setGoal(const GoalConstraint& goal)
     return true;
 }
 
+    bool RobotPlanningSpace::setGoal2(const GoalConstraint& goal)
+    {
+        m_goal2 = goal;
+        //notifyGoalChanged(goal);
+        return true;
+    }
+
 /// Add an observer to the list of observers if it is not already observing
 void RobotPlanningSpace::insertObserver(RobotPlanningSpaceObserver* obs)
 {

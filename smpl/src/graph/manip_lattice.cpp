@@ -321,7 +321,12 @@ void ManipLattice::GetSuccs(
     }
     //ROS_ERROR_STREAM("Expanded node iD is "<<state_id);
     //m_expanded_states.push_back(state_id);
-    //std::getchar();
+
+}
+
+void ManipLattice::show_state(int state_id, const std::string& vis_name, int group){
+    ManipLatticeState* parent_entry = m_states[state_id];
+    SV_SHOW_INFO_NAMED(vis_name, getStateVisualizationByGroup(parent_entry->state, vis_name,group));
 }
 
 void ManipLattice::GetSuccsWithExpansion(
@@ -352,7 +357,7 @@ void ManipLattice::GetSuccsWithExpansion(
 
     auto* vis_name = "expansion";
     SV_SHOW_INFO_NAMED(vis_name, getStateVisualization(parent_entry->state, vis_name));
-    //std::getchar();
+
     
     int goal_succ_count = 0;
 
@@ -450,7 +455,9 @@ void ManipLattice::GetSuccsByGroup(
     SMPL_DEBUG_NAMED(params()->expands_log, "  heur: %d", GetGoalHeuristic(state_id, group,0));
 
     auto* vis_name = "expansion";
-    SV_SHOW_INFO_NAMED(vis_name, getStateVisualizationByGroup(parent_entry->state, vis_name, group));
+    //ROS_INFO_STREAM("Get state visualization by group. press enter.");
+    //SV_SHOW_INFO_NAMED(vis_name, getStateVisualizationByGroup(parent_entry->state, vis_name, group));
+
 
     int goal_succ_count = 0;
 
@@ -474,12 +481,12 @@ void ManipLattice::GetSuccsByGroup(
         int distToObstCells;
         double start = ros::Time::now().toSec();
         bool test;
-        ROS_WARN_STREAM("--------------Check action----------");
+        //ROS_WARN_STREAM("--------------Check action----------");
         if(clearance_threshold_== 0) 
             test = checkAction(parent_entry->state, action);
         else
             test = checkAction(parent_entry->state, action, distToObst, distToObstCells);
-        ROS_WARN_STREAM("----------END Check action----------");
+        //ROS_WARN_STREAM("----------END Check action----------");
         double duration = ros::Time::now().toSec() - start;
         //ROS_ERROR_STREAM("duration is "<<duration);
         if (!test) {
@@ -488,10 +495,10 @@ void ManipLattice::GetSuccsByGroup(
 
         
         // compute destination coords
-        ROS_WARN_STREAM("-----------state To Coord----------");
+        //ROS_WARN_STREAM("-----------state To Coord----------");
         stateToCoord(action.back(), succ_coord);
 
-        ROS_WARN_STREAM("--------END state To Coord----------");
+        //ROS_WARN_STREAM("--------END state To Coord----------");
         // get the successor
 
         // check if hash entry already exists, if not then create one
@@ -499,10 +506,15 @@ void ManipLattice::GetSuccsByGroup(
         ManipLatticeState* succ_entry = getHashEntry(succ_state_id);
         succ_entry->source = group;
 
+        SV_SHOW_INFO_NAMED(vis_name, getStateVisualizationByGroup(succ_entry->state, "succs",group));
+
+
+
+
         // check if this state meets the goal criteria
-        ROS_WARN_STREAM("-----------is GOAL----------");
+        //ROS_WARN_STREAM("-----------is GOAL----------");
         const bool is_goal_succ = isGoal(action.back());
-        ROS_WARN_STREAM("--------end is goal----------");
+        //ROS_WARN_STREAM("--------end is goal----------");
         if (is_goal_succ) {
             // update goal state
             ++goal_succ_count;
@@ -526,7 +538,15 @@ void ManipLattice::GetSuccsByGroup(
 
         int total_cost = cost(parent_entry, succ_entry, weights[i], is_goal_succ);
         action_state.g.push_back(total_cost);
-        action_state.h.push_back(GetGoalHeuristic(succ_state_id, group,0));
+        int h_auv = GetGoalHeuristic(succ_state_id,0,0);
+        int h_eca = GetGoalHeuristic(succ_state_id,1,0);
+        int h_r5m = GetGoalHeuristic(succ_state_id,2,0);
+        if (group == 0)
+            action_state.h.push_back(h_auv);
+        else{
+            action_state.h.push_back((h_eca+h_r5m)/2);
+        }
+
         action_state.dist_obstacles = distToObst;
         if(clearance_threshold_ > 0 && distToObst<=clearance_threshold_ && distToObst>0)
         {
@@ -552,8 +572,9 @@ void ManipLattice::GetSuccsByGroup(
         SMPL_INFO_STREAM_NAMED(params()->expands_log, "        state: " << succ_entry->state);
         SMPL_INFO_NAMED(params()->expands_log, "        heur: %2d", GetGoalHeuristic(succ_state_id, group,0));
         SMPL_INFO_NAMED(params()->expands_log, "        cost: %5d", cost(parent_entry, succ_entry, is_goal_succ));
+        std::getchar();
     }
-    //std::getchar();
+
     if (goal_succ_count > 0) {
         SMPL_DEBUG_NAMED(params()->expands_log, "Got %d goal successors!", goal_succ_count);
     }
@@ -663,7 +684,7 @@ void ManipLattice::setSelectedStartId (int start_id)
 double ManipLattice::getDistanceToGoal(int state_id)
 {
     ROS_WARN_STREAM("Using get Distance To Goal. Needs to redefine what is the distance, but its already calculated for both arms. Press Enter to continue... or to crash");
-    //std::getchar();
+
     std::vector<double> state = m_states[state_id]->state;
     std::vector<double> goal_state = m_states[m_start_state_id]->state;
     std::vector<bool> isGoalRegion;
@@ -732,6 +753,7 @@ double ManipLattice::getDistanceToGoal(int state_id)
 
 bool ManipLattice::updateMultipleStartStates (std::vector<int>* new_starts, std::vector<double>* new_costs, int restore_step)
 {
+    ROS_ERROR_STREAM("ManipLattice: updateMultipleStartStates Not set for Dual arm. enter..."); std::getchar();
     std::vector<double> max_speed, q_inc;
     std::vector<double> longest_dur ;
     longest_dur.resize(m_start_states_ids.size(),0);
@@ -1031,7 +1053,7 @@ void ManipLattice::GetPredsByGroupAndExpansion(int state_id, std::vector<int>* p
         SMPL_DEBUG_NAMED(params()->expands_log, "Got %d goal successors!", goal_succ_count);
     }
     /*ROS_ERROR_STREAM("current expansion "<<expansion_step<<" group "<<group<<" id "<<state_id);
-    std::getchar();*/
+    */
     //collisionChecker()->setLastExpansionStep(-1);
 }
 
@@ -1044,7 +1066,7 @@ void ManipLattice::GetLazySuccs(
     std::vector<bool>* true_costs)
 {
     ROS_WARN_STREAM("On Get Lazy succs, not modified for dual arm. control to continue");
-    std::getchar();
+
     GetLazySuccsStopwatch.start();
     PROFAUTOSTOP(GetLazySuccsStopwatch);
 
@@ -1125,7 +1147,7 @@ int ManipLattice::GetTrueCost(int parentID, int childID)
 {
 
     ROS_WARN_STREAM("Get true cost called, not made for dual arm. control to continue");
-    std::getchar();
+
 
     GetTrueCostStopwatch.start();
     PROFAUTOSTOP(GetTrueCostStopwatch);
@@ -1207,7 +1229,7 @@ const RobotState& ManipLattice::extractState(int state_id)
 
 bool ManipLattice::projectToPose(int state_id, Eigen::Affine3d& pose)
 {
-    ROS_ERROR_STREAM("in wrong projectToPose (probably it apply)");
+    ROS_ERROR_STREAM("Manip Lattice: ProjectToPose without ee name");
     if (state_id == getGoalStateID()) {
         assert(goal().tgt_off_pose.size() >= 6);
         Eigen::Matrix3d R;
@@ -1242,23 +1264,39 @@ bool ManipLattice::projectToPose(int state_id, Eigen::Affine3d& pose)
 
     bool ManipLattice::projectToPose(int state_id, const std::string& ee_link, Eigen::Affine3d& pose)
     {
-        ROS_INFO_STREAM("In dual projectTopose for: "<<ee_link);
+        ROS_INFO_STREAM("Manip Lattice: ProjectToPose for ee "<<ee_link<<" state_id: "<<state_id<< " enter..");
+
         if (state_id == getGoalStateID()) {
+            ROS_WARN_STREAM("ManipLattice (pTP): state_id == getGoalStateID. enter...");std::getchar();
             assert(goal().tgt_off_pose.size() >= 6);
             Eigen::Matrix3d R;
+
+            GoalConstraint current_goal;
+            if(ee_link == "ECA_Jaw"){
+                current_goal = goal();
+            }
+            else if (ee_link == "R5M_Jaw"){
+                current_goal = goal2();
+            }
+            else{
+                ROS_ERROR_STREAM("EE Link Not Recognized... enter to die");
+                std::getchar();
+                return false;
+            }
             angles::from_euler_zyx(
-                    goal().tgt_off_pose[5],
-                    goal().tgt_off_pose[4],
-                    goal().tgt_off_pose[3],
+                    current_goal.tgt_off_pose[5],
+                    current_goal.tgt_off_pose[4],
+                    current_goal.tgt_off_pose[3],
                     R);
             pose =
                     Eigen::Translation3d(
-                            goal().tgt_off_pose[0],
-                            goal().tgt_off_pose[1],
-                            goal().tgt_off_pose[2]) *
+                            current_goal.tgt_off_pose[0],
+                            current_goal.tgt_off_pose[1],
+                            current_goal.tgt_off_pose[2]) *
                     Eigen::Affine3d(R);
             return true;
         }
+
 
         std::vector<double> vpose;
         if (!computePlanningFrameFK(m_states[state_id]->state, vpose,ee_link)) {
@@ -1277,16 +1315,15 @@ bool ManipLattice::projectToPose(int state_id, Eigen::Affine3d& pose)
 
 bool ManipLattice::projectToBasePoint(int state_id, Eigen::Vector3d& pos)
 {
-    ROS_ERROR_STREAM("Call to project To base point, not done for dual");
+    ROS_ERROR_STREAM("Manip Lattice: Call to project To base point");
     if(state_id == m_goal_state_id)
-    {   
+    {
+        ROS_WARN_STREAM("ManipLattice (pTBP): state_id == m_goal_state_id. Gonna compute BaseFrameIK for goal1");
         std::vector<double> goalConfig(robot()->jointVariableCount());
         computeBaseFrameIK(goal().tgt_off_pose,goalConfig);
         pos[0] = goalConfig[0];
         pos[1] = goalConfig[1];
         pos[2] = goalConfig[2];
-        ROS_WARN_STREAM("goal state id");
-        std::getchar();
     }
     else
     {
@@ -1295,6 +1332,7 @@ bool ManipLattice::projectToBasePoint(int state_id, Eigen::Vector3d& pos)
         pos[2] = m_states[state_id]->state[2];*/
         std::vector<double> base;
         //TODO CHANGE FOR DUAL
+        ROS_WARN_STREAM("ManipLattice: projectToBasePoint uses ECA_Jaw as ee for FK");
         m_fk_iface->computeFK(m_states[state_id]->state,"ECA_Jaw",base);
         SMPL_DEBUG_STREAM("FK base "<<base[0]<<","<<base[1]<<","<<base[2]);
         pos[0]=base[0];
@@ -1537,13 +1575,14 @@ int ManipLattice::cost(
     bool bState2IsGoal) const
 {
     const int DefaultCostMultiplier = 1000;
-    
+
+    /*
     int dx = HashEntry1->coord[0] - HashEntry2->coord[0];
     int dy = HashEntry1->coord[1] - HashEntry2->coord[1];
     double yaw = HashEntry1->coord[3];
     double heading = std::atan2(dy, dx);
     bool sideways = false;
-    sideways = 0.5 * M_PI - angles::shortest_angle_dist(heading, yaw);
+    sideways = 0.5 * M_PI - angles::shortest_angle_dist(heading, yaw);*/ //TRA??
    /*if (sideways) {
         int penalty = 2;
         return DefaultCostMultiplier * penalty;
@@ -1559,6 +1598,7 @@ int ManipLattice::cost(
 bool ManipLattice::checkAction(const RobotState& state, const Action& action, double& distToObst, int& distToObstCells)
 {
     std::uint32_t violation_mask = 0x00000000;
+
 
     // check intermediate states for collisions
     for (size_t iidx = 0; iidx < action.size(); ++iidx) {
@@ -1639,7 +1679,7 @@ bool ManipLattice::checkAction(const RobotState& state, const Action& action)
         if (!robot()->checkJointLimits(istate)) {
             SMPL_INFO_STREAM_NAMED(params()->expands_log, "        " << iidx << ": " << istate);
 
-            SMPL_INFO_NAMED(params()->expands_log, "        -> violates joint limits");
+            SMPL_ERROR_NAMED(params()->expands_log, "        -> violates joint limits");
             violation_mask |= 0x00000001;
             break;
         }
@@ -1744,29 +1784,38 @@ bool ManipLattice::isGoal(const RobotState& state)
                     SMPL_DEBUG("Failed to compute FK for planning frame");
             return false;
         }
-        std::vector<double> goalPose;
+        ROS_INFO_STREAM("POSE ECA:" <<pose[0] <<", "<<pose[1]<<", "<<pose[2]);
+        ROS_INFO_STREAM("POSE R5M:" <<pose2[0] <<", "<<pose2[1]<<", "<<pose2[2]);
+        /*std::vector<double> goalPose;
         goalPose.resize(6,0);
         goalPose[0]=goal().tgt_off_pose[0];
         goalPose[1]=goal().tgt_off_pose[1];
         goalPose[2]=goal().tgt_off_pose[2];
         goalPose[3]=goal().tgt_off_pose[3];
         goalPose[4]=goal().tgt_off_pose[4];
-        goalPose[5]=goal().tgt_off_pose[5];
+        goalPose[5]=goal().tgt_off_pose[5];*/
         //computeBaseFrameIK(goalPose,newState);
         const double dx = fabs(pose[0] - goal().tgt_off_pose[0]);
         const double dy = fabs(pose[1] - goal().tgt_off_pose[1]);
         const double dz = fabs(pose[2] - goal().tgt_off_pose[2]);
 
-        const double dx2 = fabs(pose2[0] - goal().tgt_off_pose[0]);
-        const double dy2 = fabs(pose2[1] - goal().tgt_off_pose[1]);
-        const double dz2 = fabs(pose2[2] - goal().tgt_off_pose[2]);
+        const double dx2 = fabs(pose2[0] - goal2().tgt_off_pose[0]);
+        const double dy2 = fabs(pose2[1] - goal2().tgt_off_pose[1]);
+        const double dz2 = fabs(pose2[2] - goal2().tgt_off_pose[2]);
         if (dx <= goal().xyz_tolerance[0] &&
             dy <= goal().xyz_tolerance[1] &&
             dz <= goal().xyz_tolerance[2] &&
-                dx2 <= goal().xyz_tolerance[0] &&
-                dy2 <= goal().xyz_tolerance[1] &&
-                dz2 <= goal().xyz_tolerance[2])
+                dx2 <= goal2().xyz_tolerance[0] &&
+                dy2 <= goal2().xyz_tolerance[1] &&
+                dz2 <= goal2().xyz_tolerance[2])
         {
+            ROS_WARN_STREAM("ManipLattice: isCloseToGoal!: goal1 is: "<<goal().tgt_off_pose[0]<<", "<<goal().tgt_off_pose[1]<<", "<<goal().tgt_off_pose[2]);
+            ROS_WARN_STREAM("----------------------   ECA_Jaw is at: "<<pose[0] <<", "<<pose[1]<<", "<<pose[2]);
+            ROS_WARN_STREAM("----------------------------- goal2 is: "<<goal2().tgt_off_pose[0]<<", "<<goal2().tgt_off_pose[1]<<", "<<goal2().tgt_off_pose[2]);
+            ROS_WARN_STREAM("----------------------   R5M_Jaw is at: "<<pose2[0] <<", "<<pose2[1]<<", "<<pose2[2]);
+            ROS_WARN_STREAM("Press enter");
+            std::getchar();
+
             // log the amount of time required for the search to get close to the goal
             if (!m_near_goal) {
                 using namespace std::chrono;
@@ -1789,11 +1838,14 @@ bool ManipLattice::isGoal(const RobotState& state)
                     Eigen::AngleAxisd(pose[4], Eigen::Vector3d::UnitY()) *
                     Eigen::AngleAxisd(pose[3], Eigen::Vector3d::UnitX()));
 
-            Eigen::Quaterniond qg2(qg);
+            Eigen::Quaterniond qg2(
+                    Eigen::AngleAxisd(goal2().tgt_off_pose[5], Eigen::Vector3d::UnitZ()) *
+                    Eigen::AngleAxisd(goal2().tgt_off_pose[4], Eigen::Vector3d::UnitY()) *
+                    Eigen::AngleAxisd(goal2().tgt_off_pose[3], Eigen::Vector3d::UnitX()));
 
             Eigen::Quaterniond q2(
                 Eigen::AngleAxisd(pose2[5], Eigen::Vector3d::UnitZ()) *
-                Eigen::AngleAxisd(pose2[4], Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd((pose2[4]), Eigen::Vector3d::UnitY()) *
                 Eigen::AngleAxisd(pose2[3], Eigen::Vector3d::UnitX()));
 
             if (q.dot(qg) < 0.0) {
@@ -1807,8 +1859,9 @@ bool ManipLattice::isGoal(const RobotState& state)
 //            const double theta = angles::normalize_angle(Eigen::AngleAxisd(qg.conjugate() * q).angle());
             const double theta = angles::normalize_angle(2.0 * acos(q.dot(qg)));
             const double theta2 = angles::normalize_angle(2.0 * acos(q2.dot(qg2)));
-            SMPL_DEBUG_STREAM("Theta vs. goal tolerance "<<theta<<","<<goal().rpy_tolerance[0]);
-            if (theta < goal().rpy_tolerance[0] && theta2 < goal().rpy_tolerance[0]) {
+            SMPL_INFO_STREAM("Theta vs. goal tolerance "<<theta<<","<<goal().rpy_tolerance[0]);
+                    SMPL_INFO_STREAM("Theta vs. goal tolerance "<<theta2<<","<<goal2().rpy_tolerance[0]);
+            if (theta < goal().rpy_tolerance[0] && theta2 < goal2().rpy_tolerance[0]) {
                 SMPL_DEBUG("Goal state found");
                 return true;
             }
@@ -1831,9 +1884,9 @@ bool ManipLattice::isGoal(const RobotState& state)
         if (fabs(pose[0] - goal().tgt_off_pose[0]) <= goal().xyz_tolerance[0] &&
             fabs(pose[1] - goal().tgt_off_pose[1]) <= goal().xyz_tolerance[1] &&
             fabs(pose[2] - goal().tgt_off_pose[2]) <= goal().xyz_tolerance[2] &&
-                fabs(pose2[0] - goal().tgt_off_pose[0]) <= goal().xyz_tolerance[0] &&
-                fabs(pose2[1] - goal().tgt_off_pose[1]) <= goal().xyz_tolerance[1] &&
-                fabs(pose2[2] - goal().tgt_off_pose[2]) <= goal().xyz_tolerance[2])
+                fabs(pose2[0] - goal2().tgt_off_pose[0]) <= goal2().xyz_tolerance[0] &&
+                fabs(pose2[1] - goal2().tgt_off_pose[1]) <= goal2().xyz_tolerance[1] &&
+                fabs(pose2[2] - goal2().tgt_off_pose[2]) <= goal2().xyz_tolerance[2])
         {
             return true;
         }
@@ -1849,6 +1902,7 @@ bool ManipLattice::isGoal(const RobotState& state)
 
 sbpl::motion::GroupType ManipLattice::switchPlanningGroup(int state_id, double switchThreshold)
 {
+    ROS_ERROR_STREAM("SwitchPlanningGroup not modified for dual arm. enter to continue"); std::getchar();
     RobotState state = m_states[state_id]->state;
     switch (goal().type) {
     case GoalType::JOINT_STATE_GOAL:
@@ -1957,19 +2011,30 @@ auto ManipLattice::getStateVisualizationByGroup(const RobotState& state, const s
     for (auto& marker : markers) {
        
         visual::Color color;
-        color.a=1;
+        color.a=0.8;
         color.g=0;
         if(group == 1)
         {
             color.b=1;
             color.r=0;
-             marker.ns = ns;
+             marker.ns = ns+std::string("_eca");//ns;
         }
-        else
+        else if(group == 0)
         {
            color.b=0;
            color.r=1; 
-            marker.ns = "base_expansion";
+            marker.ns =  ns+std::string("_base");
+        } else{
+            color.g = 1;
+            color.b = 0;
+            color.r = 0;
+            marker.ns =  ns+std::string("_r5m");
+        }
+
+        if (ns=="expansion") {
+            color.g *= 0.4;
+            color.b *= 0.4;
+            color.r *= 0.4;
         }
 
         marker.color = color;
@@ -2175,7 +2240,7 @@ bool ManipLattice::extractPath(
     }
 
     ROS_WARN_STREAM("Extract path calls apply not for dual arm. check when you reach here ");
-    std::getchar();
+
 
 
     SMPL_INFO_STREAM("Extracting Path & saving data");
@@ -2245,6 +2310,7 @@ bool ManipLattice::extractPath(
             const RobotState& prev_state = prev_entry->state;
 
             std::vector<Action> actions;
+            ROS_WARN_STREAM("In manip lattice extract path, gonna call apply with no group!!1");
             if (!m_actions->apply(prev_state, actions)) {
                 SMPL_ERROR_NAMED(params()->graph_log, "Failed to get actions while extracting the path");
                 return false;
@@ -2362,6 +2428,8 @@ RobotState ManipLattice::getStartConfiguration() const
 /// Set a 6-dof goal pose for the planning link
 bool ManipLattice::setGoalPose(const GoalConstraint& gc)
 {
+
+    const std::vector<double> offset = {0.0,-0.4,-0.3,0,0,0};
     // check arguments
     if (gc.pose.size() != 6) {
         SMPL_ERROR_NAMED(params()->graph_log, "Goal pose has incorrect format");
@@ -2373,6 +2441,22 @@ bool ManipLattice::setGoalPose(const GoalConstraint& gc)
         return false;
     }
 
+    auto gc2(gc);
+
+    gc2.tgt_off_pose[0]+=offset[0];
+    gc2.tgt_off_pose[1]+=offset[1];
+    gc2.tgt_off_pose[2]+=offset[2];
+    gc2.tgt_off_pose[3]+=offset[3];
+    gc2.tgt_off_pose[4]+=offset[4];
+    gc2.tgt_off_pose[5]+=offset[5];
+
+    gc2.pose[0]+=offset[0];
+    gc2.pose[1]+=offset[1];
+    gc2.pose[2]+=offset[2];
+    gc2.pose[3]+=offset[3];
+    gc2.pose[4]+=offset[4];
+    gc2.pose[5]+=offset[5];
+
     Eigen::Affine3d goal_pose(
             Eigen::Translation3d(
                     gc.tgt_off_pose[0],
@@ -2381,27 +2465,43 @@ bool ManipLattice::setGoalPose(const GoalConstraint& gc)
             Eigen::AngleAxisd(gc.tgt_off_pose[5], Eigen::Vector3d::UnitZ()) *
             Eigen::AngleAxisd(gc.tgt_off_pose[4], Eigen::Vector3d::UnitY()) *
             Eigen::AngleAxisd(gc.tgt_off_pose[3], Eigen::Vector3d::UnitX()));
+
+    Eigen::Affine3d goal_pose2(
+            Eigen::Translation3d(
+                    gc2.tgt_off_pose[0],
+                    gc2.tgt_off_pose[1],
+                    gc2.tgt_off_pose[2]) *
+            Eigen::AngleAxisd(gc2.tgt_off_pose[5], Eigen::Vector3d::UnitZ()) *
+            Eigen::AngleAxisd(gc2.tgt_off_pose[4], Eigen::Vector3d::UnitY()) *
+            Eigen::AngleAxisd(gc2.tgt_off_pose[3], Eigen::Vector3d::UnitX()));
     auto* vis_name = "goal_pose";
-    SV_SHOW_DEBUG_NAMED(vis_name, visual::MakePoseMarkers(goal_pose, m_viz_frame_id, vis_name));
+    SV_SHOW_INFO_NAMED(vis_name, visual::MakePoseMarkers(goal_pose, m_viz_frame_id, vis_name));
+    //ROS_INFO_STREAM("plot 1");
+    //std::getchar();
+    SV_SHOW_INFO_NAMED(vis_name, visual::MakePoseMarkers(goal_pose2, m_viz_frame_id, "goal_pose2"));
+    //ROS_INFO_STREAM("plot2");
+    //std::getchar();
 
     using namespace std::chrono;
     auto now = clock::now();
     auto now_s = duration_cast<duration<double>>(now.time_since_epoch());
-    SMPL_ERROR_NAMED(params()->graph_log, "time: %f", now_s.count());
-    SMPL_ERROR_NAMED(params()->graph_log, "A new goal has been set.");
-    SMPL_ERROR_NAMED(params()->graph_log, "    xyz (meters): (%0.2f, %0.2f, %0.2f)", gc.pose[0], gc.pose[1], gc.pose[2]);
-    SMPL_ERROR_NAMED(params()->graph_log, "    tol (meters): %0.3f", gc.xyz_tolerance[0]);
-    SMPL_ERROR_NAMED(params()->graph_log, "    rpy (radians): (%0.2f, %0.2f, %0.2f)", gc.pose[3], gc.pose[4], gc.pose[5]);
-    SMPL_ERROR_NAMED(params()->graph_log, "    tol (radians): %0.3f", gc.rpy_tolerance[0]);
+    SMPL_DEBUG_NAMED(params()->graph_log, "time: %f", now_s.count());
+    SMPL_DEBUG_NAMED(params()->graph_log, "A new goal has been set.");
+    SMPL_DEBUG_NAMED(params()->graph_log, "    xyz (meters): (%0.2f, %0.2f, %0.2f)", gc.pose[0], gc.pose[1], gc.pose[2]);
+    SMPL_DEBUG_NAMED(params()->graph_log, "    tol (meters): %0.3f", gc.xyz_tolerance[0]);
+    SMPL_DEBUG_NAMED(params()->graph_log, "    rpy (radians): (%0.2f, %0.2f, %0.2f)", gc.pose[3], gc.pose[4], gc.pose[5]);
+    SMPL_DEBUG_NAMED(params()->graph_log, "    tol (radians): %0.3f", gc.rpy_tolerance[0]);
 
     startNewSearch();
     // set the (modified) goal
-    return RobotPlanningSpace::setGoal(gc);
+    ROS_INFO_STREAM("Manip Lattice: Set Goals in RobotPlanningSpace");
+    return RobotPlanningSpace::setGoal2(gc2) && RobotPlanningSpace::setGoal(gc);
 }
 
 /// \brief Set a full joint configuration goal.
 bool ManipLattice::setGoalConfiguration(const GoalConstraint& goal)
 {
+    ROS_ERROR_STREAM("NOT IMPLEMENTED FOR DUAL ARM. ENTER to cont..."); std::getchar();
     if (goal.type == GoalType::XYZ_GOAL ||
         goal.type == GoalType::XYZ_RPY_GOAL)
     {
@@ -2452,6 +2552,7 @@ void ManipLattice::startNewSearch()
 std::vector<double> ManipLattice::getTargetOffsetPose(
     const std::vector<double>& tip_pose) const
 {
+    ROS_WARN_STREAM("ManipLattice:: getTargetOffsetPose not updated for dual arm.");
     // pose represents T_planning_eef
     Eigen::Affine3d T_planning_tipoff = // T_planning_eef * T_eef_tipoff
             Eigen::Translation3d(tip_pose[0], tip_pose[1], tip_pose[2]) *

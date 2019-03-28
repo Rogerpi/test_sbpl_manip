@@ -84,7 +84,7 @@ namespace sbpl {
             std::vector<int>* solution,
             int* cost)
     {
-                SMPL_DEBUG_NAMED(SLOG, "Find path to goal");
+            SMPL_INFO_NAMED(SLOG, "MARASTAR: REPLAN CALL");
 
         if (m_start_state_id < 0) {
                     SMPL_ERROR_NAMED(SLOG, "Start state not set");
@@ -95,16 +95,13 @@ namespace sbpl {
             return !GOAL_NOT_SET;
         }
 
-
-
-        ROS_INFO_STREAM("REPLAN MARASTAR");
         m_time_params = params;
 
         SearchState* start_state = getSearchState(m_start_state_id);
         SearchState* goal_state = getSearchState(m_goal_state_id);
 
         if (m_start_state_id != m_last_start_state_id) {
-                    SMPL_WARN_NAMED(SLOG, "Reinitialize search");
+                SMPL_INFO_NAMED(SLOG, "Reinitialize search");
             m_open_eca.clear(sbpl::motion::BASE);
             m_open_base.clear(sbpl::motion::ARM);
             m_open_r5m.clear(sbpl::motion::R5M);
@@ -112,10 +109,7 @@ namespace sbpl {
             m_incons.clear();
             ++m_call_number; // trigger state reinitializations
 
-
-                    SMPL_WARN_STREAM("Reinitialize search starttttt");
             reinitSearchState(start_state);
-                    SMPL_WARN_NAMED(SLOG, "Reinitialize search goal");
             reinitSearchState(goal_state);
 
             start_state->g = 0;
@@ -143,7 +137,7 @@ namespace sbpl {
         }
 
         if (m_goal_state_id != m_last_goal_state_id) {
-                    SMPL_WARN_NAMED(SLOG, "Refresh heuristics, keys, and reorder open list");
+            SMPL_DEBUG_NAMED(SLOG, "Refresh heuristics, keys, and reorder open list");
             recomputeHeuristics();
             reorderOpen();
 
@@ -155,7 +149,6 @@ namespace sbpl {
         clock::duration elapsed_time = clock::duration::zero();
 
         int err;
-        ROS_WARN_STREAM("BEFORE WHILE");
         while (m_satisfied_eps > m_final_eps) {
             //TODO check how to handle this for the multi search thing
             if (m_curr_eps == m_satisfied_eps) {
@@ -169,18 +162,18 @@ namespace sbpl {
 
                 for (SearchState* s : m_incons) {
 
-                            SMPL_DEBUG("pushing incons state!");
+                            SMPL_WARN("pushing incons state!");
                     s->incons = false;
                     m_open_base.push(s,sbpl::motion::GroupType::BASE);
                     //m_open_base_iso.push(s,sbpl::motion::GroupType::BASE_ISO);
                     m_open_eca.push(s,sbpl::motion::GroupType::ARM);
                     m_open_r5m.push(s,sbpl::motion::GroupType::R5M);
                 }
-                        SMPL_DEBUG_STREAM("after for loop call reorder");
+                        //SMPL_INFO_STREAM("after for loop call reorder");
 
                 reorderOpen();
                 m_incons.clear();
-                        SMPL_DEBUG_NAMED(SLOG, "Begin new search iteration %d with epsilon = %0.3f", m_iteration, m_curr_eps);
+                        SMPL_INFO_NAMED(SLOG, "Begin new search iteration %d with epsilon = %0.3f", m_iteration, m_curr_eps);
             }
             err = improvePath(start_time, goal_state, num_expansions, elapsed_time);
             if (m_curr_eps == m_initial_eps) {
@@ -190,13 +183,14 @@ namespace sbpl {
             if (err) {
                 break;
             }
-                    SMPL_DEBUG_NAMED(SLOG, "Improved solution");
+                    SMPL_INFO_NAMED(SLOG, "Improved solution");
             m_satisfied_eps = m_curr_eps;
         }
 
         m_search_time += elapsed_time;
         m_expand_count += num_expansions;
 
+        ROS_INFO_STREAM("MARASTAR REPLAN FINISHED!! \n ________________________");
 
         //TODO check!!!!!!
         if (m_satisfied_eps == std::numeric_limits<double>::infinity()) {
@@ -224,6 +218,8 @@ namespace sbpl {
             }
             return !err;
         }
+
+
 
         extractPath(goal_state, *solution, *cost);
         return !SUCCESS;
@@ -423,8 +419,10 @@ namespace sbpl {
     {
         for (SearchState* s : m_states) {
             if (s != NULL) {
-                std::vector<double> h_temp(4);
-                s->h[0] = m_heur->GetGoalHeuristic(s->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::NONE);
+                //std::vector<double> h_temp(4);
+                int h_auv = m_heur->GetGoalHeuristic(s->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::NONE);
+                int h_eca = m_heur->GetGoalHeuristic(s->state_id, sbpl::motion::GroupType::ARM,sbpl::motion::BaseGroupHeuristic::NONE);
+                int h_r5m = m_heur->GetGoalHeuristic(s->state_id, sbpl::motion::GroupType::R5M,sbpl::motion::BaseGroupHeuristic::NONE);
 
                 /*h_temp[0] = m_heur->GetGoalHeuristic(s->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::B1);
                 h_temp[1] = m_heur->GetGoalHeuristic(s->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::B2);
@@ -433,9 +431,9 @@ namespace sbpl {
                 int index = std::distance(h_temp.begin(), std::max_element(h_temp.begin(),h_temp.end()));
                 s->h[0] = h_temp[index];//std::accumulate(h_temp.begin(), h_temp.end(), 0LL)/h_temp.size();
                 */
-                s->h[1] = m_heur->GetGoalHeuristic(s->state_id, sbpl::motion::GroupType::ARM,sbpl::motion::BaseGroupHeuristic::NONE);
-                s->h[2] = m_heur->GetGoalHeuristic(s->state_id, sbpl::motion::GroupType::R5M,sbpl::motion::BaseGroupHeuristic::NONE);
-
+                s->h[0] = h_auv;
+                s->h[1] = (h_eca + h_r5m)/2;
+                s->h[2] = (h_eca + h_r5m)/2;
 
 
                 SMPL_WARN_STREAM("Recompute: Base heuristic is "<<s->h[0]<<" eca heuristic is "<<s->h[1]<<" r5m heuristic is "<<s->h[2]);
@@ -502,7 +500,7 @@ namespace sbpl {
                     return elapsed_expansions >= m_time_params.max_expansions;
                 }
             case TimeParameters::TIME:
-                        SMPL_DEBUG_STREAM("in time case "<<to_seconds(elapsed_time)<<" allowed init "<<to_seconds(m_time_params.max_allowed_time_init)<<" allowed "<<to_seconds(m_time_params.max_allowed_time));
+                        SMPL_INFO_STREAM("in time case "<<to_seconds(elapsed_time)<<" allowed init "<<to_seconds(m_time_params.max_allowed_time_init)<<" allowed "<<to_seconds(m_time_params.max_allowed_time));
 
                 if (m_satisfied_eps == std::numeric_limits<double>::infinity()) {
                     return elapsed_time >= m_time_params.max_allowed_time_init;
@@ -525,6 +523,9 @@ namespace sbpl {
             int& elapsed_expansions,
             clock::duration& elapsed_time)
     {
+        bool run_base, run_r5m, run_eca;
+        run_base = run_r5m = run_eca = true;
+        run_eca = false;
         bool empty = m_open_base.empty() || m_open_eca.empty() || m_open_r5m.empty();// || m_open_base_iso.empty();
         while (!empty) {
 
@@ -538,24 +539,24 @@ namespace sbpl {
             {
                 min_state = m_open_base_iso.min();
 
-                        SMPL_DEBUG_STREAM("Base_iso min state "<<min_state->state_id<<" and f-val "<<min_state->f[0]);
+                        SMPL_INFO_STREAM("Base_iso min state "<<min_state->state_id<<" and f-val "<<min_state->f[0]);
                 auto now = clock::now();
                 elapsed_time = now - start_time;
 
                 // path to goal found
 
                 if (min_state == goal_state) {
-                            SMPL_DEBUG_NAMED(SLOG, "Found path to goal");
+                            SMPL_INFO_NAMED(SLOG, "Found path to goal");
                     return SUCCESS;
                 }
 
 
                 if (timedOut(elapsed_expansions, elapsed_time)) {
-                            SMPL_DEBUG_NAMED(SLOG, "BASE_ISO Ran out of time");
+                            SMPL_INFO_NAMED(SLOG, "BASE_ISO Ran out of time");
                     return TIMED_OUT;
                 }
 
-                        SMPL_DEBUG_NAMED(SELOG, "Expand state %d", min_state->state_id);
+                        SMPL_INFO_NAMED(SELOG, "Expand state %d", min_state->state_id);
 
                 m_open_base_iso.pop(sbpl::motion::GroupType::BASE_ISO);
 
@@ -575,32 +576,33 @@ namespace sbpl {
                 ++ elapsed_expansions;
             }
 
-                    SMPL_DEBUG_STREAM("base_iso path condition first "<<(min_state->f[0] >= goal_state->f[0])<<
+                    SMPL_INFO_STREAM("base_iso path condition first "<<(min_state->f[0] >= goal_state->f[0])<<
                                                                       "first arm "<<(min_state->f[1] >= goal_state->f[1])<<
                                                                       ",second "<<(min_state == goal_state));
                 */
-            if(!m_open_base.empty())
+            if(run_base && run_eca && !m_open_base.empty())
             {
                 min_state = m_open_base.min();
 
-                        SMPL_DEBUG_STREAM("Base min state "<<min_state->state_id<<" and f-val "<<min_state->f[0]);
+                        SMPL_INFO_STREAM("Base min state "<<min_state->state_id<<" and f-val "<<min_state->f[0]);
                 auto now = clock::now();
                 elapsed_time = now - start_time;
 
                 // path to goal found
 
                 if (min_state == goal_state) {
-                            SMPL_DEBUG_NAMED(SLOG, "Found path to goal");
+                            SMPL_INFO_NAMED(SLOG, "Found path to goal");
+
                     return SUCCESS;
                 }
 
 
                 if (timedOut(elapsed_expansions, elapsed_time)) {
-                            SMPL_DEBUG_NAMED(SLOG, "BASE Ran out of time");
+                            SMPL_INFO_NAMED(SLOG, "BASE Ran out of time");
                     return TIMED_OUT;
                 }
 
-                        SMPL_DEBUG_NAMED(SELOG, "Expand state %d", min_state->state_id);
+                        SMPL_INFO_NAMED(SELOG, "Expand state %d", min_state->state_id);
 
                 m_open_base.pop(sbpl::motion::GroupType::BASE);
 
@@ -619,7 +621,7 @@ namespace sbpl {
                 min_state->eg = min_state->g;
 
                 ROS_ERROR_STREAM("BEFORE EXPAND BASE");
-                std::getchar();
+
 
                 expand(min_state, sbpl::motion::GroupType(sbpl::motion::GroupType::BASE));
 
@@ -628,29 +630,37 @@ namespace sbpl {
 
 
 
-                    SMPL_DEBUG_STREAM("base path condition first "<<(min_state->f[0] >= goal_state->f[0])<<
+                    SMPL_INFO_STREAM("base path condition first "<<(min_state->f[0] >= goal_state->f[0])<<
                                                                   "first arm "<<(min_state->f[1] >= goal_state->f[1])<<
                                                                   ",second "<<(min_state == goal_state));
 
-            if(!m_open_eca.empty())
+            if(run_eca && !m_open_eca.empty())
             {
                 min_state = m_open_eca.min();
+                m_space->show_state(min_state->state_id, "expansion", 1);
+                ROS_WARN_STREAM("PLOT MINIMUM STATE ECA"); std::getchar();
 
-                        SMPL_DEBUG_STREAM("Arm min state "<<min_state->state_id<<" and f-val "<<min_state->f[1]);
+                /*if( min_state->h[1] < 0.1){
+                    run_eca = false;
+                    ROS_INFO_STREAM("ECA REACHED GOAL... enter to continue"); std::getchar();
+                    continue;
+                }*/
+
+                        SMPL_INFO_STREAM("Arm min state "<<min_state->state_id<<" and f-val "<<min_state->f[1]);
 
                 // path to goal found
                 if (min_state == goal_state) {
-                            SMPL_DEBUG_NAMED(SLOG, "Found path to goal");
+                            SMPL_INFO_NAMED(SLOG, "Found path to goal");
                     return SUCCESS;
                 }
 
                 if (timedOut(elapsed_expansions, elapsed_time)) {
-                            SMPL_DEBUG_NAMED(SLOG, "ARM Ran out of time");
+                            SMPL_INFO_NAMED(SLOG, "ARM Ran out of time");
                     return TIMED_OUT;
                 }
 
-                        SMPL_DEBUG_NAMED(SELOG, "Expand state %d", min_state->state_id);
-                //SMPL_DEBUG_STREAM("Expanding state for "<<current_planning_group<<" with id "<<min_state->state_id<< " with f-val "<<min_state->f);
+                        SMPL_INFO_NAMED(SELOG, "Expand state %d", min_state->state_id);
+                //SMPL_INFO_STREAM("Expanding state for "<<current_planning_group<<" with id "<<min_state->state_id<< " with f-val "<<min_state->f);
 
                 m_open_eca.pop(sbpl::motion::GroupType::ARM);
 
@@ -669,35 +679,43 @@ namespace sbpl {
                 min_state->eg = min_state->g;
 
                 ROS_ERROR_STREAM("BEFORE EXPAND ARM");
-                std::getchar();
+
 
                 expand(min_state, sbpl::motion::GroupType(sbpl::motion::GroupType::ARM));
 
                 ++ elapsed_expansions;
             }
-                    SMPL_DEBUG_STREAM("arm path condition "<<(min_state->f[0] >= goal_state->f[0])<<
+                    SMPL_INFO_STREAM("arm path condition "<<(min_state->f[0] >= goal_state->f[0])<<
                                                            "first arm "<<(min_state->f[1] >= goal_state->f[1])<<
                                                            ",second "<<(min_state == goal_state));
 
-            if(!m_open_r5m.empty())
+            if( run_r5m && !m_open_r5m.empty())
             {
                 min_state = m_open_r5m.min();
+                m_space->show_state(min_state->state_id, "expansion",2);
+                ROS_WARN_STREAM("PLOT MINIMUM STATE R5M"); std::getchar();
+                /*
+                if( min_state->h[2] < 0.1){
+                    run_r5m = false;
+                    ROS_INFO_STREAM("R5M REACHED GOAL... enter to continue"); std::getchar();
+                    continue;
+                }*/
 
-                        SMPL_DEBUG_STREAM("Arm min state "<<min_state->state_id<<" and f-val "<<min_state->f[2]);
+                        SMPL_INFO_STREAM("Arm min state "<<min_state->state_id<<" and f-val "<<min_state->f[2]);
 
                 // path to goal found
                 if (min_state == goal_state) {
-                            SMPL_DEBUG_NAMED(SLOG, "Found path to goal");
+                            SMPL_INFO_NAMED(SLOG, "Found path to goal");
                     return SUCCESS;
                 }
 
                 if (timedOut(elapsed_expansions, elapsed_time)) {
-                            SMPL_DEBUG_NAMED(SLOG, "ARM Ran out of time");
+                            SMPL_INFO_NAMED(SLOG, "ARM Ran out of time");
                     return TIMED_OUT;
                 }
 
-                        SMPL_DEBUG_NAMED(SELOG, "Expand state %d", min_state->state_id);
-                //SMPL_DEBUG_STREAM("Expanding state for "<<current_planning_group<<" with id "<<min_state->state_id<< " with f-val "<<min_state->f);
+                        SMPL_INFO_NAMED(SELOG, "Expand state %d", min_state->state_id);
+                //SMPL_INFO_STREAM("Expanding state for "<<current_planning_group<<" with id "<<min_state->state_id<< " with f-val "<<min_state->f);
 
                 m_open_r5m.pop(sbpl::motion::GroupType::R5M);
 
@@ -719,20 +737,26 @@ namespace sbpl {
                 std::getchar();
 
 
+
                 expand(min_state, sbpl::motion::GroupType(sbpl::motion::GroupType::R5M));
+
+                std::getchar();
 
                 ++ elapsed_expansions;
             }
-                    SMPL_DEBUG_STREAM("arm path condition "<<(min_state->f[0] >= goal_state->f[0])<<
+                    SMPL_INFO_STREAM("arm path condition "<<(min_state->f[0] >= goal_state->f[0])<<
                                                            "first arm "<<(min_state->f[1] >= goal_state->f[1])<<
                                                            ",second "<<(min_state == goal_state));
 
+
+            ROS_ERROR_STREAM("DONE EXPANSIONS FOR THE 3 groups");
+            ROS_ERROR_STREAM("--------------------------------");
 
             empty = m_open_base.empty() || m_open_eca.empty();// || m_open_base_iso.empty();
 
 
 
-                    SMPL_DEBUG_STREAM("one full cycle done. base: "<<m_open_base.empty()<<",arm:"<<m_open_eca.empty()<<" r5m:"<<m_open_r5m.empty() << " and both:"<<empty);
+                    SMPL_INFO_STREAM("one full cycle done. base: "<<m_open_base.empty()<<",arm:"<<m_open_eca.empty()<<" r5m:"<<m_open_r5m.empty() << " and both:"<<empty);
         }
 
         return EXHAUSTED_OPEN_LIST;
@@ -744,27 +768,27 @@ namespace sbpl {
         /*if(min_heuristic_found[current_planning_group]==INFINITECOST)
             min_heuristic_found[current_planning_group] = current_min;
 
-        SMPL_DEBUG_STREAM("Min Heuristic found is "<<current_min<<" and base min before "
+        SMPL_INFO_STREAM("Min Heuristic found is "<<current_min<<" and base min before "
             <<min_heuristic_found[sbpl::motion::GroupType::BASE]<<" arm min before"
             <<min_heuristic_found[sbpl::motion::GroupType::ARM]);
 
         if(current_min<min_heuristic_found[current_planning_group])// && current_min<min_heuristic_found[sbpl::motion::GroupType::ARM])
         {
             min_heuristic_found[current_planning_group] = current_min;
-            SMPL_DEBUG_STREAM("Keep in the same group "<<current_planning_group<<" and new min "<<min_heuristic_found[current_planning_group]);
+            SMPL_INFO_STREAM("Keep in the same group "<<current_planning_group<<" and new min "<<min_heuristic_found[current_planning_group]);
             return;
         }
         else if(min_heuristic_found[sbpl::motion::GroupType::BASE]!=-1 && min_heuristic_found[sbpl::motion::GroupType::ARM]!=-1 )
         {
                 if(current_planning_group == sbpl::motion::GroupType::BASE)// && min_heuristic_found[sbpl::motion::GroupType::ARM]<=min_heuristic_found[sbpl::motion::GroupType::BASE])
                 {
-                    //SMPL_DEBUG_STREAM("Switching to group arm!");
+                    //SMPL_INFO_STREAM("Switching to group arm!");
                     current_planning_group = sbpl::motion::GroupType::ARM;
                     expansion_status[sbpl::motion::GroupType::BASE] = 1;
                 }
                 else if(current_planning_group == sbpl::motion::GroupType::ARM)// && min_heuristic_found[sbpl::motion::GroupType::BASE]<=min_heuristic_found[sbpl::motion::GroupType::ARM])
                 {
-                    //SMPL_DEBUG_STREAM("Switching to group base!");
+                    //SMPL_INFO_STREAM("Switching to group base!");
                     current_planning_group = sbpl::motion::GroupType::BASE;
                     expansion_status[sbpl::motion::GroupType::ARM] = 1;
                 }
@@ -790,7 +814,7 @@ namespace sbpl {
              {
                  if(m_open.contains(m_states[i],sbpl::motion::GroupType::BASE)
                      && m_open.contains(m_states[i],sbpl::motion::GroupType::ARM))
-                     SMPL_DEBUG_STREAM("State in both "<<m_states[i]->g<<","<<m_states[i]->f);
+                     SMPL_INFO_STREAM("State in both "<<m_states[i]->g<<","<<m_states[i]->f);
              }
          }*/
     }
@@ -802,7 +826,7 @@ namespace sbpl {
         m_succs.clear();
         m_costs.clear();
         m_clearance_cells.clear();
-        //std::getchar();
+
         //std::vector<int> base_succs, arm_succs, base_costs, arm_costs, r5m_succs, r5m_costs;
 
         /*
@@ -811,7 +835,7 @@ namespace sbpl {
             m_space->GetSuccsByGroup(s->state_id, &m_succs, &m_costs, &m_clearance_cells, sbpl::motion::GroupType::BASE);
 
 
-                    SMPL_DEBUG_STREAM("group "<<group<<" has "<<m_succs.size()<<" successors");
+                    SMPL_INFO_STREAM("group "<<group<<" has "<<m_succs.size()<<" successors");
 
             for (size_t sidx = 0; sidx < m_succs.size(); ++sidx) {
                 int succ_state_id = m_succs[sidx];
@@ -824,7 +848,7 @@ namespace sbpl {
                 succ_state->h[1] += m_clearance_cells[sidx];
 
                 int new_cost = s->eg + cost;
-                        SMPL_DEBUG_NAMED(SELOG, "Compare new cost %d vs old cost %d", new_cost, succ_state->g);
+                        SMPL_INFO_NAMED(SELOG, "Compare new cost %d vs old cost %d", new_cost, succ_state->g);
                 if (new_cost < succ_state->g) {
                     succ_state->g = new_cost;
                     succ_state->bp = s;
@@ -833,25 +857,25 @@ namespace sbpl {
                     if (succ_state->iteration_closed[sbpl::motion::BASE] != m_iteration) {
                         succ_state->f[0] = computeKey(succ_state,sbpl::motion::BASE);
 
-                                SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has base_iso f-val "<<succ_state->f[0]);
+                                SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has base_iso f-val "<<succ_state->f[0]);
                         if (m_open_base_iso.contains(succ_state,sbpl::motion::BASE_ISO)) {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has already been expanded in base decrease priority!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has already been expanded in base decrease priority!");
                             m_open_base_iso.decrease(succ_state,sbpl::motion::BASE_ISO);
                         }
                         else {
                             m_open_base_iso.push(succ_state,sbpl::motion::BASE_ISO);
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to base_iso open list!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to base_iso open list!");
                         }
 
 
-                                SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has base f-val "<<succ_state->f[0]);
+                                SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has base f-val "<<succ_state->f[0]);
                         if (m_open_base.contains(succ_state,sbpl::motion::BASE)) {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has already been expanded in base decrease priority!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has already been expanded in base decrease priority!");
                             m_open_base.decrease(succ_state,sbpl::motion::BASE);
                         }
                         else {
                             m_open_base.push(succ_state,sbpl::motion::BASE);
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to base open list!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to base open list!");
                         }
                     } else if (!succ_state->incons) {
                         m_incons.push_back(succ_state);
@@ -860,14 +884,14 @@ namespace sbpl {
 
                     if (succ_state->iteration_closed[sbpl::motion::ARM] != m_iteration) {
                         succ_state->f[1] = computeKey(succ_state,sbpl::motion::ARM);
-                                SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has arm f-val "<<succ_state->f[1]);
+                                SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has arm f-val "<<succ_state->f[1]);
 
                         if (m_open_eca.contains(succ_state,sbpl::motion::ARM)) {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has already been expanded in arm decrease priority!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has already been expanded in arm decrease priority!");
                             m_open_eca.decrease(succ_state,sbpl::motion::ARM);
                         }
                         else {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to arm open list!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to arm open list!");
                             m_open_eca.push(succ_state,sbpl::motion::ARM);
                         }
                     } else if (!succ_state->incons) {
@@ -880,24 +904,24 @@ namespace sbpl {
 
         else
         {
-         */  m_space->GetSuccsByGroup(s->state_id, &m_succs, &m_costs, &m_clearance_cells, group);
 
+         */  m_space->GetSuccsByGroup(s->state_id, &m_succs, &m_costs, &m_clearance_cells, group);
 
             ROS_WARN_STREAM("group "<<group<<" has "<<m_succs.size()<<" successors");
 
-            std::getchar();
+
             for (size_t sidx = 0; sidx < m_succs.size(); ++sidx) {
                 int succ_state_id = m_succs[sidx];
                 int cost = m_costs[sidx];
 
                 SearchState* succ_state = getSearchState(succ_state_id);
-                reinitSearchState(succ_state);
+                reinitSearchState(succ_state); //recompute heuristics TODO: ISN't recomputed (its done in manip lattice getsuccsbygroup...)
 
                 succ_state->h[0] += m_clearance_cells[sidx];
                 succ_state->h[1] += m_clearance_cells[sidx];
                 succ_state->h[2] += m_clearance_cells[sidx];
                 int new_cost = s->eg + cost;
-                        SMPL_DEBUG_NAMED(SELOG, "Compare new cost %d vs old cost %d", new_cost, succ_state->g);
+                        SMPL_INFO_NAMED(SELOG, "Compare new cost %d vs old cost %d", new_cost, succ_state->g);
                 if (new_cost < succ_state->g) {
                     succ_state->g = new_cost;
                     succ_state->bp = s;
@@ -905,14 +929,14 @@ namespace sbpl {
                     if (succ_state->iteration_closed[sbpl::motion::BASE] != m_iteration) {
                         succ_state->f[0] = computeKey(succ_state,sbpl::motion::BASE);
 
-                                SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has base f-val "<<succ_state->f[0]);
+                                SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has base f-val "<<succ_state->f[0]);
                         if (m_open_base.contains(succ_state,sbpl::motion::BASE)) {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has already been expanded in base decrease priority!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has already been expanded in base decrease priority!");
                             m_open_base.decrease(succ_state,sbpl::motion::BASE);
                         }
                         else {
                             m_open_base.push(succ_state,sbpl::motion::BASE);
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to base open list!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to base open list!");
                         }
                     } else if (!succ_state->incons) {
                         m_incons.push_back(succ_state);
@@ -920,14 +944,14 @@ namespace sbpl {
 
                     if (succ_state->iteration_closed[sbpl::motion::ARM] != m_iteration) {
                         succ_state->f[1] = computeKey(succ_state,sbpl::motion::ARM);
-                                SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has arm f-val "<<succ_state->f[1]);
+                                SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has arm f-val "<<succ_state->f[1]);
 
                         if (m_open_eca.contains(succ_state,sbpl::motion::ARM)) {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has already been expanded in arm decrease priority!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has already been expanded in arm decrease priority!");
                             m_open_eca.decrease(succ_state,sbpl::motion::ARM);
                         }
                         else {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to arm open list!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to arm open list!");
                             m_open_eca.push(succ_state,sbpl::motion::ARM);
                         }
                     } else if (!succ_state->incons) {
@@ -936,14 +960,14 @@ namespace sbpl {
 
                     if (succ_state->iteration_closed[sbpl::motion::R5M] != m_iteration) {
                         succ_state->f[2] = computeKey(succ_state,sbpl::motion::R5M);
-                                SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has arm f-val "<<succ_state->f[2]);
+                                SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has arm f-val "<<succ_state->f[2]);
 
                         if (m_open_r5m.contains(succ_state,sbpl::motion::R5M)) {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has already been expanded in arm decrease priority!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has already been expanded in arm decrease priority!");
                             m_open_r5m.decrease(succ_state,sbpl::motion::R5M);
                         }
                         else {
-                                    SMPL_DEBUG_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to arm open list!");
+                                    SMPL_INFO_STREAM("State "<<succ_state->state_id<< " has never been expanded, added to arm open list!");
                             m_open_r5m.push(succ_state,sbpl::motion::R5M);
                         }
                     } else if (!succ_state->incons) {
@@ -958,7 +982,7 @@ namespace sbpl {
 // Recompute the f-values of all states in OPEN and reorder OPEN.
     void MARAStar::reorderOpen()
     {
-        ROS_DEBUG_STREAM("reorderOpen called!");
+        ROS_INFO_STREAM("reorderOpen called!");
 
         //m_open_base_iso.make(sbpl::motion::GroupType::BASE_ISO);
 
@@ -1016,10 +1040,10 @@ namespace sbpl {
     void MARAStar::reinitSearchState(SearchState* state)
     {
         if (state->call_number != m_call_number) {
-                    SMPL_DEBUG_NAMED(SELOG, "Reinitialize state %d", state->state_id);
+                    SMPL_INFO_NAMED(SELOG, "Reinitialize state %d", state->state_id);
             state->g = INFINITECOST;
             //std::vector<double> h_temp(4);
-            state->h[0] = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::B1);
+            int h_auv = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::B1);
             /*h_temp[0] = m_heur->GetGoalHeuristite->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::B1);
             h_temp[1] = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::B2);
             h_temp[2] = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::BASE,sbpl::motion::BaseGroupHeuristic::B3);
@@ -1028,11 +1052,13 @@ namespace sbpl {
             state->h[0] = h_temp[index];//std::accumulate(h_temp.begin(), h_temp.end(), 0LL)/h_temp.size();
             */
 
-            state->h[1] = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::ARM,sbpl::motion::BaseGroupHeuristic::NONE);
+            int h_eca = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::ARM,sbpl::motion::BaseGroupHeuristic::NONE);
 
-            ROS_INFO_STREAM("BEFORE GET GOAL HEURISTIC");
-            state->h[2] = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::R5M,sbpl::motion::BaseGroupHeuristic::NONE);
-            ROS_INFO_STREAM("AFTER GET GOAL HEURISTIC");
+            int h_r5m = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::R5M,sbpl::motion::BaseGroupHeuristic::NONE);
+
+            state->h[0] = h_auv;
+            state->h[1] = (h_eca+h_r5m)/2;
+            state->h[2] = (h_eca+h_r5m)/2;
 
             state->f[0] = state->f[1] = state->f[2] = INFINITECOST;
             state->eg = INFINITECOST;
@@ -1042,7 +1068,7 @@ namespace sbpl {
             state->call_number = m_call_number;
             state->bp = nullptr;
             state->incons = false;
-                    SMPL_DEBUG_STREAM("Reinit State "<<state->state_id<<": Base heuristic is "<<state->h[0]<<" eca heuristic is "<<state->h[1]<<" r5m heuristic is "<<state->h[2]);
+                    SMPL_INFO_STREAM("Reinit State "<<state->state_id<<": Base heuristic is "<<state->h[0]<<" eca heuristic is "<<state->h[1]<<" r5m heuristic is "<<state->h[2]);
         }
     }
 

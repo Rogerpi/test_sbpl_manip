@@ -91,6 +91,8 @@ private:
     //int getBfsCostToGoal(const BFS_3D& bfs, int x, int y, int z,GroupType planning_group) const;
     int getBfsCostToGoal(const BFS_3D& bfs, int x, int y, int z) const;
 
+    ros::Publisher fk_pub_debug;
+
 };
 
 } // namespace motion

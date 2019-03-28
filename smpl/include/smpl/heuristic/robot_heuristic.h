@@ -77,6 +77,10 @@ public:
     /// to activate context-aware actions.
     virtual double getMetricGoalDistance(double x, double y, double z) = 0;
 
+    virtual double getMetricGoalDistance(double x, double y, double z, sbpl::motion::GroupType) {
+        getMetricGoalDistance(x,y,z);
+    }
+
     virtual bool setGoal(const GoalConstraint& goal);
 
     auto planningSpace() -> RobotPlanningSpace* { return m_space; }

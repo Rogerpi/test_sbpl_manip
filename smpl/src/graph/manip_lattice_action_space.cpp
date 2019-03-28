@@ -73,7 +73,7 @@ bool ManipLatticeActionSpace::init(ManipLattice* space)
     }
 
     useMultipleIkSolutions(false);
-    useLongAndShortPrims(false);
+    useLongAndShortPrims(true);
     useAmp(MotionPrimitive::SNAP_TO_XYZ, true);
     useAmp(MotionPrimitive::SNAP_TO_RPY, true);
     useAmp(MotionPrimitive::SNAP_TO_XYZ_RPY, true);
@@ -244,7 +244,7 @@ void ManipLatticeActionSpace::clear()
     MotionPrimitive mprim;
 
 
-    std::vector<sbpl::motion::GroupType> groups({sbpl::motion::GroupType::BASE,sbpl::motion::GroupType::ARM,sbpl::motion::GroupType::R5M});
+    std::vector<sbpl::motion::GroupType> groups({sbpl::motion::GroupType::ARM,sbpl::motion::GroupType::R5M});
 
     for (const auto gtype:groups) {
         mprim.type = MotionPrimitive::SNAP_TO_RPY;
@@ -265,7 +265,9 @@ void ManipLatticeActionSpace::clear()
         mprim.group = gtype;
         mprim.weight = 0.5;
         m_mprims.push_back(mprim);
+
     }
+
 
     for (int i = 0; i < MotionPrimitive::NUMBER_OF_MPRIM_TYPES; ++i) {
         m_mprim_enabled[i] = (i == MotionPrimitive::Type::LONG_DISTANCE);
@@ -345,14 +347,28 @@ void ManipLatticeActionSpace::updateStart(const RobotState& start)
 
 void ManipLatticeActionSpace::updateGoal(const GoalConstraint& goal)
 {
-    ROS_INFO_STREAM("MANIP LATTICE ACTION SPACE UPDATE GOAL");
+    ROS_WARN_STREAM("MANIP LATTICE ACTION SPACE UPDATE GOAL: Doesn't do anything actually... Goal is accessed from m_space");
+    GoalConstraint goal1 =  planningSpace()->goal();
+    GoalConstraint goal2 = planningSpace()->goal2();
+
+    ROS_WARN_STREAM("MLAS SENT GOAL: "<<goal.tgt_off_pose[0]<<" "<<goal.tgt_off_pose[1]<<" "<<goal.tgt_off_pose[2]);
+
+    ROS_WARN_STREAM("PlanningSpace goal1: "<<goal1.tgt_off_pose[0]<<" "<<goal1.tgt_off_pose[1]<<" "<<goal1.tgt_off_pose[2]);
+
+    ROS_WARN_STREAM("PlanningSpace goal2: "<<goal2.tgt_off_pose[0]<<" "<<goal2.tgt_off_pose[1]<<" "<<goal2.tgt_off_pose[2]);
+
+    std::getchar();
+
     RobotPlanningSpaceObserver::updateGoal(goal);
+    //RobotPlanningSpaceObserver::updateGoal();
 }
 
 bool ManipLatticeActionSpace::apply(
     const RobotState& parent,
     std::vector<Action>& actions)
 {
+    ROS_ERROR_STREAM("APPLY for no group called");
+    std::getchar();
     if (!m_fk_iface) {
         return false;
     }
@@ -363,12 +379,15 @@ bool ManipLatticeActionSpace::apply(
         return false;
     }
 
+    ROS_ERROR_STREAM("Why a simple apply is called?");
+
     // get distance to the goal pose
     double goal_dist = 0.0;
     double start_dist = 0.0;
     if (planningSpace()->numHeuristics() > 0) {
         RobotHeuristic* h = planningSpace()->heuristic(0);
-        ROS_WARN_STREAM("Get metric goa ldistance gonna be called, for switching between short and long motion primitives");
+        ROS_ERROR_STREAM("SIMPLE APPLY!!!; Get metric goa ldistance gonna be called, for switching between short and long motion primitives");
+
         goal_dist = h->getMetricGoalDistance(pose[0], pose[1], pose[2]);
         //start_dist = h->getMetricStartDistance(pose[0], pose[1], pose[2]);
         start_dist = 0; //Is not used at all, lets avoid using a function that is not implemented for dual arm manipulation
@@ -393,19 +412,20 @@ bool ManipLatticeActionSpace::apply(
     const RobotState& parent,
     std::vector<Action>& actions, ActionsWeight& weights, int group)
 {
-    ROS_INFO_STREAM("-------------APPLY-------------------");
-    ROS_WARN_STREAM("Group: "<<group);
+    ROS_INFO_STREAM("-------------APPLY---(Group: "<<group<<" ) ---------------");
     if (!m_fk_iface) {
         return false;
     }
 
     std::vector<double> pose;
 
-    //std::string ee_name = (group == R5M) ? "R5M_Jaw" : "ECA_Jaw";
+    std::string ee_name = (group == sbpl::motion::GroupType ::R5M) ? "R5M_Jaw" : "ECA_Jaw";
 
-    if (!m_fk_iface->computePlanningLinkFK(parent, pose)) { //old
-    //if (!m_fk_iface->computeFK(parent, ee_name, pose))
+    ROS_WARN_STREAM(" GONNA CALL COMPUTE PLANNING LINK FK for switching between mp");
+    //if (!m_fk_iface->computePlanningLinkFK(parent, pose)) { //old
+    if (!m_fk_iface->computeFK(parent, ee_name, pose)){
         SMPL_ERROR("Failed to compute forward kinematics for planning link");
+        std::getchar();
         return false;
     }
 
@@ -413,10 +433,10 @@ bool ManipLatticeActionSpace::apply(
     double goal_dist = 0.0;
     double start_dist = 0.0;
     if (planningSpace()->numHeuristics() > 0) {
-        RobotHeuristic* h = planningSpace()->heuristic(0);
-        ROS_WARN_STREAM("Get metric goa ldistance gonna be called, for switching between short and long motion primitives");
 
-        goal_dist = h->getMetricGoalDistance(pose[0], pose[1], pose[2]);
+        RobotHeuristic* h = planningSpace()->heuristic(0);
+        goal_dist = h->getMetricGoalDistance(pose[0], pose[1], pose[2],sbpl::motion::GroupType(group));
+
         //start_dist = h->getMetricStartDistance(pose[0], pose[1], pose[2]);
     }
 
@@ -434,8 +454,8 @@ bool ManipLatticeActionSpace::apply(
                if (getAction(parent, goal_dist, start_dist, mp, act, false)) {
                 actions.insert(actions.end(), act.begin(), act.end());
                 weights.push_back(mp.weight);
-               /* SMPL_WARN_STREAM("New Action fetched for group "<<group<<" with size "<<act.size()<<" and values of each: ");
-                for(int i=0;i<act[0].size();i++)
+                SMPL_INFO_STREAM("New Action fetched for group "<<group<<" type: "<<mp.type);
+                /*for(int i=0;i<act[0].size();i++)
                     for(size_t j = 0; j < act[0][i].size(); ++j)
                         {
                             SMPL_WARN_STREAM("First dim size "<<act[0].size()<<" Second "<<act[0][i].size());
@@ -443,12 +463,16 @@ bool ManipLatticeActionSpace::apply(
                         }*/
                     
                 }
+               else{
+                   SMPL_INFO_STREAM("action not taken");
+               }
              }
              
             } );
     }
     else
     {
+        ROS_ERROR_STREAM("GROUP -1 Called!!!");
             for (const MotionPrimitive& prim : m_mprims) {
             act.clear();
             if (getAction(parent, goal_dist, start_dist, prim, act, false)) {
@@ -539,14 +563,15 @@ bool ManipLatticeActionSpace::getAction(
     const MotionPrimitive& mp,
     std::vector<Action>& actions, bool isPredecessor)
 {
-    ROS_WARN_STREAM("Group: "<<mp.group <<" R5M Group "<<sbpl::motion::GroupType::R5M);
+    //ROS_WARN_STREAM("Group: "<<mp.group <<" R5M Group "<<sbpl::motion::GroupType::R5M);
     if (!mprimActive(start_dist, goal_dist, mp.type)) {
-        ROS_DEBUG_STREAM("prim not active");
+        ROS_ERROR_STREAM("prim not active");
         return false;
     }
 
-    GoalType goal_type = planningSpace()->goal().type;
+    //GoalType goal_type = planningSpace()->goal().type;
     const std::vector<double>& goal_pose = planningSpace()->goal().pose;
+    const std::vector<double>& goal_pose2 = planningSpace()->goal2().pose;
 
     switch (mp.type) {
     case MotionPrimitive::LONG_DISTANCE:
@@ -564,7 +589,7 @@ bool ManipLatticeActionSpace::getAction(
         if (mp.group == sbpl::motion::GroupType::R5M)
             return computeIkAction(
                 parent,
-                goal_pose,
+                goal_pose2,
                 goal_dist,
                 ik_option::RESTRICT_XYZ, "R5M",
                 actions);
@@ -582,7 +607,7 @@ bool ManipLatticeActionSpace::getAction(
         if (mp.group == sbpl::motion::GroupType::R5M)
             return computeIkAction(
                 parent,
-                goal_pose,
+                goal_pose2,
                 goal_dist,
                 ik_option::RESTRICT_RPY, "R5M",
                 actions);
@@ -597,11 +622,11 @@ bool ManipLatticeActionSpace::getAction(
     }
     case MotionPrimitive::SNAP_TO_XYZ_RPY:
     {
-        if (planningSpace()->goal().type != GoalType::JOINT_STATE_GOAL) {
+        if (planningSpace()->goal().type != GoalType::JOINT_STATE_GOAL && planningSpace()->goal2().type != GoalType::JOINT_STATE_GOAL ) { //assume goal and goal2 are the same type.. but 2nd goal comparisson is added to show an error in the else
             if (mp.group == sbpl::motion::GroupType::R5M)
                 return computeIkAction(
                     parent,
-                    goal_pose,
+                    goal_pose2,
                     goal_dist,
                     ik_option::UNRESTRICTED, "R5M",
                     actions);
@@ -613,6 +638,8 @@ bool ManipLatticeActionSpace::getAction(
                         ik_option::UNRESTRICTED, "ECA",
                         actions);
         } else {
+            ROS_ERROR_STREAM("Check why I'm here");
+            std::getchar();
             // goal is 7dof; instead of computing  IK, use the goal itself as
             // the IK solution
             actions.resize(1);
@@ -637,12 +664,9 @@ bool ManipLatticeActionSpace::applyMotionPrimitive(
     Action temp = action;
 
     for (size_t i = 0; i < action.size(); ++i) {
-        //ROS_INFO_STREAM(action[i].size()<<" : "<<state.size());
         if (action[i].size() != state.size()) {
             return false;
         }
-
-        //ROS_ERROR_STREAM("Initial action "<<action[i][0]<<","<<action[i][1]<<","<<action[i][2]);
 
         
         Eigen::Matrix2d worldToBody;
@@ -685,6 +709,8 @@ bool ManipLatticeActionSpace::computeIkAction(
     ik_option::IkOption option,
     std::vector<Action>& actions)
 {
+
+    ROS_ERROR_STREAM("ManipLatticeActionSpace computeIKAction: Should not be used"); std::getchar();
     if (!m_ik_iface) {
         return false;
     }
@@ -724,7 +750,11 @@ bool ManipLatticeActionSpace::computeIkAction(
             ik_option::IkOption option, const std::string & arm,
             std::vector<Action>& actions)
     {
-    ROS_WARN_STREAM("compute ik action "<<arm);
+
+
+    ROS_INFO_STREAM("ManipLatticeActionSpace: compute ik action "<<arm);
+    ROS_INFO_STREAM("GOAL: "<<goal[0]<<" "<<goal[1]<<" "<<goal[2]);
+    std::getchar();
         if (!m_ik_iface) {
             return false;
         }
@@ -765,8 +795,8 @@ bool ManipLatticeActionSpace::mprimActive(
     MotionPrimitive::Type type) const
 {
 
-    ROS_DEBUG_STREAM("Type is "<<type<<", start_dist "<<start_dist<<", goal_dist "<<goal_dist);
-    /*std::getchar();*/
+    ROS_WARN_STREAM("Type is "<<type<<", start_dist "<<start_dist<<", goal_dist "<<goal_dist);
+    /**/
    if (type == MotionPrimitive::LONG_DISTANCE) {
         if (m_use_long_and_short_dist_mprims) {
             return true;

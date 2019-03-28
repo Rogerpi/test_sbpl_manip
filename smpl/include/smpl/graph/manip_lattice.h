@@ -56,7 +56,7 @@
 namespace sbpl {
 namespace motion {
 
-class RobotHeuristic;
+class RobotHeuristic; //why?
 
 typedef std::vector<int> RobotCoord;
 
@@ -215,6 +215,8 @@ public:
     void setMotionPlanRequestType (int request_type);
 
     void setSelectedStartId (int start_id);
+
+    void show_state(int state_id, const std::string& vis_name, int group = 0);
 
 protected:
 

@@ -191,7 +191,7 @@ int ARAStar::replan(
         err = improvePath(start_time, goal_state, num_expansions, elapsed_time);
 
         ROS_ERROR_STREAM("AFTER IMPROVE PATH");
-        //std::getchar();
+
 
          SMPL_DEBUG_STREAM("improve returned with result "<<err<<" and satsfied "<<m_satisfied_eps<<",current "<<m_curr_eps);
         if (m_curr_eps == m_initial_eps) {

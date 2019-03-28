@@ -155,6 +155,8 @@ int BfsHeuristic::GetGoalHeuristic(int state_id)
     }
 
     std::string ee_link;
+    ROS_ERROR_STREAM("Are we here?");
+    std::getchar();
 
 
 

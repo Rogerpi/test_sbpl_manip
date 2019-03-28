@@ -74,6 +74,7 @@ public:
     virtual bool setMultipleStart(const std::vector<RobotState>& states);
 
     virtual bool setGoal(const GoalConstraint& goal);
+    virtual bool setGoal2(const GoalConstraint& goal);
 
     virtual int getStartStateID() const = 0;
     virtual int getGoalStateID() const = 0;
@@ -100,6 +101,7 @@ public:
 
     const RobotState& startState() const { return m_start; }
     const GoalConstraint& goal() const { return m_goal; }
+    const GoalConstraint& goal2() const { return m_goal2;}
 
     size_t numHeuristics() const;
     RobotHeuristic* heuristic(size_t i);

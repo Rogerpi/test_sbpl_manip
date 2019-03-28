@@ -2147,7 +2147,7 @@ bool PlannerInterface::planToPoseWithMultipleIK(const moveit_msgs::PlanningScene
                 start_states.push_back(self_motions[0]);
             }
             //self_motions.clear();
-            std::getchar();  
+
         }*/
         
         if(start_states.size()==0)

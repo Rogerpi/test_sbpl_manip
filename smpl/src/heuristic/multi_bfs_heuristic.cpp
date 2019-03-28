@@ -20,8 +20,11 @@ MultiBfsHeuristic::~MultiBfsHeuristic()
 
 bool MultiBfsHeuristic::init(RobotPlanningSpace* space, const OccupancyGrid* grid)
 {
+
     ROS_INFO_STREAM("MULTI BFS HEURISTIC");
-    if (!grid) {
+    ROS_INFO_STREAM("GRID RESOLUTION: "<<grid->resolution()<<" enter to continue");
+    std::getchar();
+     if (!grid) {
         return false;
     }
 
@@ -30,6 +33,10 @@ bool MultiBfsHeuristic::init(RobotPlanningSpace* space, const OccupancyGrid* gri
     }
 
     m_grid = grid;
+
+    ros::NodeHandle nh;
+    fk_pub_debug = nh.advertise< visualization_msgs::Marker >("fk_goal", 10);
+
 
     m_pp = space->getExtension<PointProjectionExtension>();
     if (m_pp) {
@@ -57,14 +64,25 @@ void MultiBfsHeuristic::setCostPerCell(int cost_per_cell)
 
 void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
 {
-    ROS_WARN_STREAM("SOMEBODY CALLED UPDATE GOAL! goal2 set to y+=0.20");
+    ROS_WARN_STREAM("MBFS UpdateGoal. argument not used, got it from planningSpace (ActionSpace attribute)");
+
+
+    GoalConstraint goal1 =  planningSpace()->goal();
+    GoalConstraint goal2 = planningSpace()->goal2();
+
+    ROS_WARN_STREAM("MBFS SENT GOAL: "<<goal.tgt_off_pose[0]<<" "<<goal.tgt_off_pose[1]<<" "<<goal.tgt_off_pose[2]);
+
+    ROS_WARN_STREAM("PlanningSpace goal1: "<<goal1.tgt_off_pose[0]<<" "<<goal1.tgt_off_pose[1]<<" "<<goal1.tgt_off_pose[2]);
+
+    ROS_WARN_STREAM("PlanningSpace goal2: "<<goal2.tgt_off_pose[0]<<" "<<goal2.tgt_off_pose[1]<<" "<<goal2.tgt_off_pose[2]);
+
     std::getchar();
-    GoalConstraint goal2(goal);
-    goal2.tgt_off_pose[1] += 0.4;
+
+
     int gx, gy, gz, base_gx, base_gy, base_gz;
     int gx2, gy2, gz2;
     grid()->worldToGrid(
-            goal.tgt_off_pose[0], goal.tgt_off_pose[1], goal.tgt_off_pose[2],
+            goal1.tgt_off_pose[0], goal1.tgt_off_pose[1], goal1.tgt_off_pose[2],
             gx, gy, gz);
 
     grid()->worldToGrid(
@@ -79,12 +97,10 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
     m_goal_y2 = gy2;
     m_goal_z2 = gz2;
 
-    SMPL_ERROR_NAMED(LOG, "Setting the BFS heuristic goal (%d, %d, %d)", gx, gy, gz);
+    //SMPL_ERROR_NAMED(LOG, "Setting the BFS heuristic goal (%d, %d, %d)", gx, gy, gz);
     
     if(goal.angles.empty())
     {
-        ROS_ERROR_STREAM("GOAL ANGLES EMPTY. Didnt modify this for dual arm. enter to continue");
-        std::getchar();
         int listSize = ((double)(1.8/grid()->resolution()))+1;
         std::vector<int> inputGoals(pow(listSize,3)*3);
         std::vector<Eigen::Vector3d> centers;
@@ -216,7 +232,7 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
 double MultiBfsHeuristic::getMetricStartDistance(double x, double y, double z)
 {
     ROS_ERROR_STREAM("Called getMetricStart distance not made for dual. enter to continue");
-    std::getchar();
+
     int start_id = planningSpace()->getStartStateID();
     if (!m_pp) {
         return 0.0;
@@ -255,26 +271,14 @@ double MultiBfsHeuristic::getMetricGoalDistance(double x, double y, double z)
 
 double MultiBfsHeuristic::getMetricGoalDistance(double x, double y, double z, GroupType planning_group)
 {
-    ROS_WARN_STREAM("Not implemented getMEtricGoalDistance for group");
-    /*int gx, gy, gz;
-    if(planning_group==GroupType::BASE)
-    {
-        grid()->worldToGrid(x, y, z, gx, gy, gz);
-        if (!m_base_bfs->inBounds(gx, gy, gz)) {
-            return (double)BFS_3D::WALL * grid()->resolution();
-        } else {
-            return (double)m_base_bfs->getDistance(gx, gy, gz) * grid()->resolution();
-        }
+    int gx, gy, gz;
+    grid()->worldToGrid(x, y, z, gx, gy, gz);
+    if (!m_bfs[planning_group]->inBounds(gx, gy, gz)) {
+        return (double)BFS_3D::WALL * grid()->resolution();
+    } else {
+        return (double)m_bfs[planning_group]->getDistance(gx, gy, gz) * grid()->resolution();
     }
-    else
-    {
-        grid()->worldToGrid(x, y, z, gx, gy, gz);
-        if (!m_bfs->inBounds(gx, gy, gz)) {
-            return (double)BFS_3D::WALL * grid()->resolution();
-        } else {
-            return (double)m_bfs->getDistance(gx, gy, gz) * grid()->resolution();
-        }
-    }*/
+
 }
 
 Extension* MultiBfsHeuristic::getExtension(size_t class_code)
@@ -354,19 +358,41 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
     ROS_INFO_STREAM("call getbfscostto goal for planning group: "<<planning_group);
    double cost  = getBfsCostToGoal(*m_bfs[planning_group], dp.x(), dp.y(), dp.z());
 
-   
-    if (!m_pp->projectToPoint(planningSpace()->getStartStateID(), ee_link, p)) {
-        return 0.0;
-    }
+   visualization_msgs::Marker marker;
+   marker.header.frame_id = "/world";
+   marker.header.stamp = ros::Time();
+   marker.ns = std::to_string(planning_group);
+    marker.pose.position.x = p.x();
+    marker.pose.position.y = p.y();
+    marker.pose.position.z = p.z();
+    marker.scale.x = 0.1;
+    marker.scale.y = 0.1;
+    marker.scale.z = 0.1;
+    marker.color.a = 1.0; // Don't forget to set the alpha!
+    marker.color.r = 0.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;
+    marker.type = visualization_msgs::Marker::SPHERE;
+    marker.action = visualization_msgs::Marker::ADD;
+
+    fk_pub_debug.publish(marker);
+
+
+
+
+
+    //if (!m_pp->projectToPoint(planningSpace()->getStartStateID(), ee_link, p)) {
+    //    return 0.0;
+    //}
     //ROS_INFO_STREAM("after project to point multi_");
 
-    int sx, sy, sz;
-    grid()->worldToGrid(p.x(), p.y(), p.z(), sx, sy, sz);
+    //int sx, sy, sz;
+    //grid()->worldToGrid(p.x(), p.y(), p.z(), sx, sy, sz);
 
 
 
 SMPL_INFO_STREAM("Total final heuristic Cost is "<<cost);
-//std::getchar();
+
 SMPL_INFO_STREAM("====================================================================");
         
    return cost;
@@ -381,7 +407,7 @@ int MultiBfsHeuristic::GetStartHeuristic(int state_id)
 int MultiBfsHeuristic::GetFromToHeuristic(int from_id, int to_id)
 {
     ROS_ERROR_STREAM("Get from to heuristic not made for dual. enter to continue");
-    std::getchar();
+
     if (to_id == planningSpace()->getGoalStateID()) {
         return GetGoalHeuristic(from_id);
     }
@@ -427,6 +453,7 @@ auto MultiBfsHeuristic::getWallsVisualization() const -> visual::Marker
 
 auto MultiBfsHeuristic::getValuesVisualization() -> visual::Marker
 {
+
     if (m_goal_x < 0 || m_goal_y < 0 || m_goal_z < 0) {
         return visual::MakeEmptyMarker();
     }
@@ -702,7 +729,7 @@ void MultiBfsHeuristic::syncGridAndBfs()
 
 int MultiBfsHeuristic::getBfsCostToGoal(const BFS_3D& bfs, int x, int y, int z) const
 {
-    ROS_WARN_STREAM("USing get BFS Cost To Goal. Not modified, but shouldnt I guess");
+    //ROS_WARN_STREAM("USing get BFS Cost To Goal. Not modified, but shouldnt I guess");
     if (!bfs.inBounds(x, y, z)) {
         return Infinity;
     }
