@@ -73,8 +73,8 @@ bool ManipLatticeActionSpace::init(ManipLattice* space)
     }
 
     useMultipleIkSolutions(false);
-    useLongAndShortPrims(true);
-    useAmp(MotionPrimitive::SNAP_TO_XYZ, true);
+    useLongAndShortPrims(false);
+    useAmp(MotionPrimitive::SNAP_TO_XYZ, false);
     useAmp(MotionPrimitive::SNAP_TO_RPY, true);
     useAmp(MotionPrimitive::SNAP_TO_XYZ_RPY, true);
     useAmp(MotionPrimitive::SHORT_DISTANCE, true);
@@ -347,17 +347,10 @@ void ManipLatticeActionSpace::updateStart(const RobotState& start)
 
 void ManipLatticeActionSpace::updateGoal(const GoalConstraint& goal)
 {
-    ROS_WARN_STREAM("MANIP LATTICE ACTION SPACE UPDATE GOAL: Doesn't do anything actually... Goal is accessed from m_space");
+    ROS_WARN_STREAM("MANIP LATTICE ACTION SPACE UPDATE GOAL: Goal is accessed from m_space. Call RobotPlanningSpaceObserver::updateGoal");
     GoalConstraint goal1 =  planningSpace()->goal();
     GoalConstraint goal2 = planningSpace()->goal2();
 
-    ROS_WARN_STREAM("MLAS SENT GOAL: "<<goal.tgt_off_pose[0]<<" "<<goal.tgt_off_pose[1]<<" "<<goal.tgt_off_pose[2]);
-
-    ROS_WARN_STREAM("PlanningSpace goal1: "<<goal1.tgt_off_pose[0]<<" "<<goal1.tgt_off_pose[1]<<" "<<goal1.tgt_off_pose[2]);
-
-    ROS_WARN_STREAM("PlanningSpace goal2: "<<goal2.tgt_off_pose[0]<<" "<<goal2.tgt_off_pose[1]<<" "<<goal2.tgt_off_pose[2]);
-
-    std::getchar();
 
     RobotPlanningSpaceObserver::updateGoal(goal);
     //RobotPlanningSpaceObserver::updateGoal();
@@ -368,7 +361,6 @@ bool ManipLatticeActionSpace::apply(
     std::vector<Action>& actions)
 {
     ROS_ERROR_STREAM("APPLY for no group called");
-    std::getchar();
     if (!m_fk_iface) {
         return false;
     }
@@ -378,8 +370,6 @@ bool ManipLatticeActionSpace::apply(
         SMPL_ERROR("Failed to compute forward kinematics for planning link");
         return false;
     }
-
-    ROS_ERROR_STREAM("Why a simple apply is called?");
 
     // get distance to the goal pose
     double goal_dist = 0.0;
@@ -412,19 +402,34 @@ bool ManipLatticeActionSpace::apply(
     const RobotState& parent,
     std::vector<Action>& actions, ActionsWeight& weights, int group)
 {
-    ROS_INFO_STREAM("-------------APPLY---(Group: "<<group<<" ) ---------------");
+    //ROS_INFO_STREAM("-------------APPLY---(Group: "<<group<<" ) ---------------");
     if (!m_fk_iface) {
         return false;
     }
 
     std::vector<double> pose;
 
-    std::string ee_name = (group == sbpl::motion::GroupType ::R5M) ? "R5M_Jaw" : "ECA_Jaw";
+    //std::string ee_name = (group == sbpl::motion::GroupType ::R5M) ? "R5M_Jaw" : "ECA_Jaw";
+    std::string ee_name;
+    switch(group)  {
+        case sbpl::motion::GroupType::R5M:
+            ee_name = "R5M_Jaw";
+            break;
+        case sbpl::motion::GroupType::ARM:
+            ee_name = "ECA_Jaw";
+            break;
+        case sbpl::motion::GroupType::BASE:
+            ee_name = "AUV_roll_link";
+            break;
+        default:
+            ROS_ERROR_STREAM("MLAS Group not recognized... press enter");
+            std::getchar();
+    }
 
-    ROS_WARN_STREAM(" GONNA CALL COMPUTE PLANNING LINK FK for switching between mp");
+    //ROS_WARN_STREAM(" GONNA CALL COMPUTE PLANNING LINK FK for switching between mp");
     //if (!m_fk_iface->computePlanningLinkFK(parent, pose)) { //old
     if (!m_fk_iface->computeFK(parent, ee_name, pose)){
-        SMPL_ERROR("Failed to compute forward kinematics for planning link");
+        SMPL_ERROR("Failed to compute forward kinematics for planning link!");
         std::getchar();
         return false;
     }
@@ -463,9 +468,6 @@ bool ManipLatticeActionSpace::apply(
                         }*/
                     
                 }
-               else{
-                   SMPL_INFO_STREAM("action not taken");
-               }
              }
              
             } );
@@ -483,7 +485,7 @@ bool ManipLatticeActionSpace::apply(
         }
     }
     if (actions.empty()) {
-        SMPL_WARN_ONCE("No motion primitives specified apply");
+        SMPL_WARN_ONCE("MPAS APPLY: No motion primitives specified ");
     }
 
     /*for(int i=0;i<actions.size();i++){
@@ -495,7 +497,7 @@ bool ManipLatticeActionSpace::apply(
         }
     }*/
 
-    ROS_INFO_STREAM("------------------END APPLY---------------------");
+    //ROS_INFO_STREAM("------------------END APPLY---------------------");
 
     return true;
 }
@@ -565,7 +567,7 @@ bool ManipLatticeActionSpace::getAction(
 {
     //ROS_WARN_STREAM("Group: "<<mp.group <<" R5M Group "<<sbpl::motion::GroupType::R5M);
     if (!mprimActive(start_dist, goal_dist, mp.type)) {
-        ROS_ERROR_STREAM("prim not active");
+        ROS_DEBUG_STREAM("prim not active");
         return false;
     }
 
@@ -753,8 +755,6 @@ bool ManipLatticeActionSpace::computeIkAction(
 
 
     ROS_INFO_STREAM("ManipLatticeActionSpace: compute ik action "<<arm);
-    ROS_INFO_STREAM("GOAL: "<<goal[0]<<" "<<goal[1]<<" "<<goal[2]);
-    std::getchar();
         if (!m_ik_iface) {
             return false;
         }

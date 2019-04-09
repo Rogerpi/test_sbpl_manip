@@ -15,6 +15,8 @@
 #include <tf_conversions/tf_eigen.h>
 #include <smpl/debug/visualize.h>
 #include <smpl/angles.h>
+
+#include <cmath>
 namespace sbpl {
 namespace motion {
 
@@ -70,7 +72,7 @@ private:
     const OccupancyGrid* m_grid = nullptr;
 
     std::vector<std::unique_ptr<BFS_3D>> m_bfs;
-    PointProjectionExtension* m_pp = nullptr;
+    PoseProjectionExtension* m_pp = nullptr;
     ManipLattice* m_manip = nullptr;
 
     double m_inflation_radius = 0.0;

@@ -22,8 +22,7 @@ bool MultiBfsHeuristic::init(RobotPlanningSpace* space, const OccupancyGrid* gri
 {
 
     ROS_INFO_STREAM("MULTI BFS HEURISTIC");
-    ROS_INFO_STREAM("GRID RESOLUTION: "<<grid->resolution()<<" enter to continue");
-    std::getchar();
+    ROS_INFO_STREAM("GRID RESOLUTION: "<<grid->resolution());
      if (!grid) {
         return false;
     }
@@ -38,7 +37,7 @@ bool MultiBfsHeuristic::init(RobotPlanningSpace* space, const OccupancyGrid* gri
     fk_pub_debug = nh.advertise< visualization_msgs::Marker >("fk_goal", 10);
 
 
-    m_pp = space->getExtension<PointProjectionExtension>();
+    m_pp = space->getExtension<PoseProjectionExtension>();
     if (m_pp) {
         SMPL_INFO_NAMED(LOG, "Got Point Projection Extension!");
     }
@@ -70,17 +69,11 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
     GoalConstraint goal1 =  planningSpace()->goal();
     GoalConstraint goal2 = planningSpace()->goal2();
 
-    ROS_WARN_STREAM("MBFS SENT GOAL: "<<goal.tgt_off_pose[0]<<" "<<goal.tgt_off_pose[1]<<" "<<goal.tgt_off_pose[2]);
-
-    ROS_WARN_STREAM("PlanningSpace goal1: "<<goal1.tgt_off_pose[0]<<" "<<goal1.tgt_off_pose[1]<<" "<<goal1.tgt_off_pose[2]);
-
-    ROS_WARN_STREAM("PlanningSpace goal2: "<<goal2.tgt_off_pose[0]<<" "<<goal2.tgt_off_pose[1]<<" "<<goal2.tgt_off_pose[2]);
-
-    std::getchar();
-
 
     int gx, gy, gz, base_gx, base_gy, base_gz;
     int gx2, gy2, gz2;
+
+    int gxb1, gxb2, gyb1, gyb2, gzb1, gzb2;
     grid()->worldToGrid(
             goal1.tgt_off_pose[0], goal1.tgt_off_pose[1], goal1.tgt_off_pose[2],
             gx, gy, gz);
@@ -101,32 +94,33 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
     
     if(goal.angles.empty())
     {
+
         int listSize = ((double)(1.8/grid()->resolution()))+1;
-        std::vector<int> inputGoals(pow(listSize,3)*3);
+        std::vector<int> inputGoals((listSize*(listSize/2)*(listSize/3))*3);
         std::vector<Eigen::Vector3d> centers;
         SMPL_ERROR_STREAM("Goal Region Size "<<listSize<<" resolution "<<grid()->resolution()<<" total size "<<inputGoals.size());
         int idx = 0;
         int xSign = 1,ySign = 1, zSign = 1;
         for(int i=0;i<listSize;i++)
         {
-            for(int j=0;j<listSize;j++)
-               for(int k=0;k<listSize;k++)
+            for(int j=0;j<listSize/2;j++)
+               for(int k=0;k<listSize/3;k++)
                 {   
                     if(i>listSize/2)
                         xSign = -(i-std::ceil(listSize/2));
                     else
                         xSign = i;
-                    if(j>listSize/2)
-                        ySign = -(j-std::ceil(listSize/2));
+                    if(j>listSize/4)
+                        ySign = -(j-std::ceil(listSize/4));
                     else
                         ySign = j;
-                    if(k>listSize/2)
-                        zSign = -(k-std::ceil(listSize/2));
+                    if(k>listSize/4)
+                        zSign = -(k-std::ceil(listSize/4));
                     else
                         zSign = k;
-                    inputGoals[idx]  = gx + xSign;
-                    inputGoals[idx+1] = gy + ySign;
-                    inputGoals[idx+2] = gz + zSign;
+                    inputGoals[idx]  = (gx+gx2)/2 + xSign;
+                    inputGoals[idx+1] = (gy+gy2)/2 + ySign; //+ abs(gy-gy2)*0.25
+                    inputGoals[idx+2] = (gz+gz2)/2 + zSign;
                     
                     Eigen::Vector3d p;
                     grid()->gridToWorld( inputGoals[idx],  inputGoals[idx+1],  inputGoals[idx+2], p.x(), p.y(), p.z());
@@ -135,23 +129,147 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
                 }
         }
 
-        visual::Color color;
+        /*
+
+        double x_offset = -0.75;
+        double z_offset = 0.372;
+        double y_offset = 0.0;
+
+        grid()->worldToGrid(
+                goal1.tgt_off_pose[0]+x_offset, goal1.tgt_off_pose[1]+y_offset, goal1.tgt_off_pose[2]+z_offset,
+                gxb1, gyb1, gzb1);
+
+        grid()->worldToGrid(
+                goal2.tgt_off_pose[0]+x_offset, goal2.tgt_off_pose[1]+y_offset, goal2.tgt_off_pose[2]+z_offset,
+                gxb2, gyb2, gzb2);
+
+        int x_eca_max = (int) (0.2/grid()->resolution())+1;
+        int y_eca_max = (int)(0.1/grid()->resolution())+1;
+        int z_eca_max = (int)(0.6/grid()->resolution())+1;
+        int x_eca_min = (int)(-0.6/grid()->resolution());
+        int y_eca_min = (int)(-0.73/grid()->resolution());
+        int z_eca_min = (int)(-0.35/grid()->resolution());
+
+        int x_r5m_max = (int) (0.45/grid()->resolution())+1;
+        int y_r5m_max = (int)(0.76/grid()->resolution())+1;
+        int z_r5m_max = (int)(0.7/grid()->resolution())+1;
+        int x_r5m_min = (int)(-0.75/grid()->resolution());
+        int y_r5m_min = (int)(-0.4/grid()->resolution());
+        int z_r5m_min = (int)(-0.6/grid()->resolution());
+
+        std::vector<int> inputGoalsECA, inputGoalsR5M, inputGoalsInt;
+        std::vector<Eigen::Vector3d> centersECA, centersR5M, centersInt;
+
+        int idx = 0;
+        for(int i=x_eca_min;i<x_eca_max;i++)
+            for(int j=y_eca_min;j<y_eca_max;j++)
+                for(int k=z_eca_min;k<z_eca_max;k++)
+                {
+                    if (sqrt(pow(i*grid()->resolution(),2)+pow(j*grid()->resolution(),2)+pow(k*grid()->resolution(),2))>0.7)
+                        continue; //discard some corners
+                    inputGoalsECA.push_back(gxb1 + i);
+                    inputGoalsECA.push_back(gyb1 + j);
+                    inputGoalsECA.push_back(gzb1 + k);
+
+                    Eigen::Vector3d p;
+                    grid()->gridToWorld( inputGoalsECA[idx],  inputGoalsECA[idx+1],  inputGoalsECA[idx+2], p.x(), p.y(), p.z());
+                    centersECA.push_back(p);
+                    idx+=3;
+                    
+                }
+        idx = 0;
+        for(int i=x_r5m_min;i<x_r5m_max;i++)
+            for(int j=y_r5m_min;j<y_r5m_max;j++)
+                for(int k=z_r5m_min;k<z_r5m_max;k++)
+                {
+                    if (sqrt(pow(i*grid()->resolution(),2)+pow(j*grid()->resolution(),2)+pow(k*grid()->resolution(),2))>0.66)
+                        continue; //discard some corners
+                    inputGoalsR5M.push_back(gxb2 + i);
+                    inputGoalsR5M.push_back(gyb2 + j);
+                    inputGoalsR5M.push_back(gzb2 + k);
+
+                    Eigen::Vector3d p;
+                    grid()->gridToWorld( inputGoalsR5M[idx],  inputGoalsR5M[idx+1],  inputGoalsR5M[idx+2], p.x(), p.y(), p.z());
+                    centersR5M.push_back(p);
+                    idx+=3;
+
+                }
+
+        for( int i = 0; i<centersECA.size(); i++) {
+            auto c_ECA = centersECA[i];
+            for (auto c_R5M : centersR5M) {
+                double dist = (c_ECA - c_R5M).norm();
+                if (dist > grid()->resolution() / 2)
+                    continue;
+                centersInt.push_back(Eigen::Vector3d(c_ECA));
+                inputGoalsInt.push_back(inputGoalsECA[i*3]);
+                inputGoalsInt.push_back(inputGoalsECA[i*3+1]);
+                inputGoalsInt.push_back(inputGoalsECA[i*3+2]);
+            }
+        }
+
+
+
+        visual::Color colorECA, colorR5M, color;
+        colorECA.r = 0.0f;
+        colorECA.g = 1.0f;
+        colorECA.b = 0.0f;
+        colorECA.a = 0.25f;
+
+        colorR5M.r = 0.0f;
+        colorR5M.g = 0.0f;
+        colorR5M.b = 1.0f;
+        colorR5M.a = 0.25f;
+
         color.r = 238.0f / 255.0f;
         color.g = 100.0f / 255.0f;
         color.b = 149.0f / 255.0f;
         color.a = 0.4f;
-        
+
+        SV_SHOW_INFO (visual::MakeCubesMarker(
+                centersInt,
+                grid()->resolution(),
+                color,
+                grid()->getReferenceFrame(),
+                "bfs_base_goals_int"));
+
+        SV_SHOW_INFO (visual::MakeCubesMarker(
+                centersECA,
+                grid()->resolution(),
+                colorECA,
+                grid()->getReferenceFrame(),
+                "bfs_base_goals_eca"));
+
+        SV_SHOW_INFO (visual::MakeCubesMarker(
+                centersR5M,
+                grid()->resolution(),
+                colorR5M,
+                grid()->getReferenceFrame(),
+                "bfs_base_goals_r5m"));
+*/
+
+
+        visual::Color color;
+
+        color.r = 238.0f / 255.0f;
+        color.g = 100.0f / 255.0f;
+        color.b = 149.0f / 255.0f;
+        color.a = 0.4f;
+
         SV_SHOW_INFO (visual::MakeCubesMarker(
                 centers,
                 grid()->resolution(),
                 color,
                 grid()->getReferenceFrame(),
                 "bfs_base_goals"));
+        /*
+        visual::Color color;
 
-       /* color.r = 50.0f / 255.0f;
-        color.g = 200.0f / 255.0f;
-        color.b = 50.0f / 255.0f;
-        color.a = 0.2f;
+        color.r = 238.0f / 255.0f;
+        color.g = 100.0f / 255.0f;
+        color.b = 149.0f / 255.0f;
+        color.a = 0.4f;
+
         std::vector<Eigen::Vector3d> grid_centers;
         for(int i=-10;i<10;i++)
         {
@@ -171,8 +289,11 @@ void MultiBfsHeuristic::updateGoal(const GoalConstraint& goal)
                 grid()->resolution(),
                 color,
                 grid()->getReferenceFrame(),
-                "Grid"));*/
+                "Grid"));
 
+        */
+
+        //int numGoals = m_bfs[GroupType::BASE]->run < std::vector<int>::iterator >(inputGoalsInt.begin(),inputGoalsInt.end());
         int numGoals = m_bfs[GroupType::BASE]->run < std::vector<int>::iterator >(inputGoals.begin(),inputGoals.end());
         if (!numGoals)
         {
@@ -258,8 +379,8 @@ double MultiBfsHeuristic::getMetricStartDistance(double x, double y, double z)
 
 double MultiBfsHeuristic::getMetricGoalDistance(double x, double y, double z)
 {
-    ROS_ERROR_STREAM("Called getMetricGoal distance not made for dual. enter to continue");
-    std::getchar();
+    ROS_ERROR_STREAM("Called getMetricGoal distance not made for dual");
+    //std::getchar();
     int gx, gy, gz;
     grid()->worldToGrid(x, y, z, gx, gy, gz);
     if (!m_bfs[GroupType::ARM]->inBounds(gx, gy, gz)) {
@@ -317,32 +438,85 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
 
     std::string ee_link;
     Eigen::Vector3d p;
+    Eigen::Affine3d pose;
+    double penalty = 0;
     if(planning_group==GroupType::BASE)
     {
-        ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO BASE POINT!!!");
+        //ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO BASE POINT!!!");
         if (state_id==0)
             return 0;
 
         else if (!m_pp->projectToBasePoint(state_id, p)) {
             return 0;
         }
-        ee_link = "ECA_Jaw";
+        ee_link = "AUV_roll_link";
+
+        //penalty = (GetGoalHeuristic(state_id,GroupType::ARM,base_heuristic_idx) +  GetGoalHeuristic(state_id,GroupType::R5M,base_heuristic_idx))/2;
     }
     else if(planning_group==GroupType::ARM)
     {
-        ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO POINT ECA MBFS!!!");
+        //ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO POINT ECA MBFS!!!");
         ee_link = "ECA_Jaw";
-        if (!m_pp->projectToPoint(state_id, ee_link, p)) {
+        if (!m_pp->projectToPose(state_id, ee_link, pose)) {
             return 0;
         }
+        p = pose.translation();
+
+        GoalConstraint goal =  planningSpace()->goal();
+
+        goal.pose; // roll pitch yaw
+
+
+
+        Eigen::Matrix3d rot = pose.rotation();
+
+
+        auto ea = rot.eulerAngles(2,1,0);
+
+
+
+
+        ROS_INFO_STREAM(goal.pose[3]<< " " << ea[0]<< " " << goal.pose[4]<< " " << ea[1]<< " " << goal.pose[5]<< " " << ea[2]);
+        //std::getchar();
+
+        ROS_INFO_STREAM( std::abs(ea[0] - goal.pose[3])<<" "<<std::abs(ea[2] - goal.pose[4]) <<" "<< std::abs(ea[3] - goal.pose[5]))  ;
+        //penalty = std::abs(ea[0] - goal.pose[3])*100 + std::abs(ea[2] - goal.pose[4])*100 + std::abs(ea[3] - goal.pose[5])*100  ;
+        ROS_INFO_STREAM("penalty: "<<penalty);
+
+
+
+
+
     }
     else if(planning_group == GroupType::R5M) {
-        ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO POINT R5M MBFS!!!");
+        //ROS_INFO_STREAM("MBFS HEUR: BEFORE PROJECT TO POINT R5M MBFS!!!");
         ee_link = "R5M_Jaw";
-        if (!m_pp->projectToPoint(state_id, ee_link, p)) {
+        if (!m_pp->projectToPose(state_id, ee_link, pose)) {
             return 0;
 
         }
+
+        p = pose.translation();
+
+        GoalConstraint goal =  planningSpace()->goal2();
+
+        goal.pose; // roll pitch yaw
+
+
+
+        Eigen::Matrix3d rot = pose.rotation();
+
+
+        auto ea = rot.eulerAngles(2,1,0);
+
+
+
+        ROS_INFO_STREAM(goal.pose[3]<< " " << ea[0]<< " " << goal.pose[4]<< " " << ea[1]<< " " << goal.pose[5]<< " " << ea[2]);
+        //std::getchar();
+
+        ROS_INFO_STREAM( std::abs(ea[0] - goal.pose[3])<<" "<<std::abs(ea[2] - goal.pose[4]) <<" "<< std::abs(ea[3] - goal.pose[5]))  ;
+        //penalty = std::abs(ea[0] - goal.pose[3])*100 + std::abs(ea[2] - goal.pose[4])*100 + std::abs(ea[3] - goal.pose[5])*100  ;
+        ROS_INFO_STREAM("penalty: "<<penalty);
     }
     else{
         ROS_ERROR_STREAM("No group identified. Setting BASE as group");
@@ -355,9 +529,10 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
     SMPL_INFO_STREAM("get heursitic for grid point "<<dp.x()<<","<<dp.y()<<","<<dp.z());
     SMPL_INFO_STREAM("get heursitic for world point "<<p.x()<<","<<p.y()<<","<<p.z());
 
-    ROS_INFO_STREAM("call getbfscostto goal for planning group: "<<planning_group);
-   double cost  = getBfsCostToGoal(*m_bfs[planning_group], dp.x(), dp.y(), dp.z());
+    //ROS_INFO_STREAM("call getbfscosttoGoal for planning group: "<<planning_group);
+   double cost  = getBfsCostToGoal(*m_bfs[planning_group], dp.x(), dp.y(), dp.z()) + penalty;
 
+   /* WAS done to make sure FK for r5m was correct
    visualization_msgs::Marker marker;
    marker.header.frame_id = "/world";
    marker.header.stamp = ros::Time();
@@ -376,6 +551,7 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
     marker.action = visualization_msgs::Marker::ADD;
 
     fk_pub_debug.publish(marker);
+    */
 
 
 
@@ -391,7 +567,7 @@ int MultiBfsHeuristic::GetGoalHeuristic(int state_id, int planning_group, int ba
 
 
 
-SMPL_INFO_STREAM("Total final heuristic Cost is "<<cost);
+SMPL_INFO_STREAM("Total final heuristic Cost is "<<cost-penalty<<" penalty: "<<penalty);
 
 SMPL_INFO_STREAM("====================================================================");
         

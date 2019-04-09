@@ -185,6 +185,7 @@ namespace sbpl {
             }
                     SMPL_INFO_NAMED(SLOG, "Improved solution");
             m_satisfied_eps = m_curr_eps;
+            break;
         }
 
         m_search_time += elapsed_time;
@@ -431,9 +432,9 @@ namespace sbpl {
                 int index = std::distance(h_temp.begin(), std::max_element(h_temp.begin(),h_temp.end()));
                 s->h[0] = h_temp[index];//std::accumulate(h_temp.begin(), h_temp.end(), 0LL)/h_temp.size();
                 */
-                s->h[0] = h_auv;
-                s->h[1] = (h_eca + h_r5m)/2;
-                s->h[2] = (h_eca + h_r5m)/2;
+                s->h[0] = h_auv  ;//+ (h_eca+h_r5m)/4;
+                s->h[1] = (2*h_eca/4 + 2*h_r5m/4); //+ h_auv;
+                s->h[2] = (2*h_eca/4 + 2*h_r5m/4); // + h_auv;
 
 
                 SMPL_WARN_STREAM("Recompute: Base heuristic is "<<s->h[0]<<" eca heuristic is "<<s->h[1]<<" r5m heuristic is "<<s->h[2]);
@@ -494,15 +495,18 @@ namespace sbpl {
 
         switch (m_time_params.type) {
             case TimeParameters::EXPANSIONS:
+                ROS_INFO_STREAM("expansion time param");
                 if (m_satisfied_eps == std::numeric_limits<double>::infinity()) {
                     return elapsed_expansions >= m_time_params.max_expansions_init;
                 } else {
                     return elapsed_expansions >= m_time_params.max_expansions;
                 }
             case TimeParameters::TIME:
+                ROS_INFO_STREAM("time param");
                         SMPL_INFO_STREAM("in time case "<<to_seconds(elapsed_time)<<" allowed init "<<to_seconds(m_time_params.max_allowed_time_init)<<" allowed "<<to_seconds(m_time_params.max_allowed_time));
 
                 if (m_satisfied_eps == std::numeric_limits<double>::infinity()) {
+                    ROS_INFO_STREAM("infinity");
                     return elapsed_time >= m_time_params.max_allowed_time_init;
                 } else {
                     return elapsed_time >= m_time_params.max_allowed_time;
@@ -525,7 +529,7 @@ namespace sbpl {
     {
         bool run_base, run_r5m, run_eca;
         run_base = run_r5m = run_eca = true;
-        run_eca = false;
+        run_eca = true;
         bool empty = m_open_base.empty() || m_open_eca.empty() || m_open_r5m.empty();// || m_open_base_iso.empty();
         while (!empty) {
 
@@ -638,7 +642,7 @@ namespace sbpl {
             {
                 min_state = m_open_eca.min();
                 m_space->show_state(min_state->state_id, "expansion", 1);
-                ROS_WARN_STREAM("PLOT MINIMUM STATE ECA"); std::getchar();
+                //ROS_WARN_STREAM("PLOT MINIMUM STATE ECA");// std::getchar();
 
                 /*if( min_state->h[1] < 0.1){
                     run_eca = false;
@@ -693,7 +697,7 @@ namespace sbpl {
             {
                 min_state = m_open_r5m.min();
                 m_space->show_state(min_state->state_id, "expansion",2);
-                ROS_WARN_STREAM("PLOT MINIMUM STATE R5M"); std::getchar();
+                //ROS_WARN_STREAM("PLOT MINIMUM STATE R5M"); //std::getchar();
                 /*
                 if( min_state->h[2] < 0.1){
                     run_r5m = false;
@@ -734,13 +738,13 @@ namespace sbpl {
                 min_state->eg = min_state->g;
 
                 ROS_ERROR_STREAM("BEFORE EXPAND R5M");
-                std::getchar();
+                //std::getchar();
 
 
 
                 expand(min_state, sbpl::motion::GroupType(sbpl::motion::GroupType::R5M));
 
-                std::getchar();
+                //std::getchar();
 
                 ++ elapsed_expansions;
             }
@@ -907,7 +911,7 @@ namespace sbpl {
 
          */  m_space->GetSuccsByGroup(s->state_id, &m_succs, &m_costs, &m_clearance_cells, group);
 
-            ROS_WARN_STREAM("group "<<group<<" has "<<m_succs.size()<<" successors");
+            ROS_INFO_STREAM("group "<<group<<" has "<<m_succs.size()<<" successors");
 
 
             for (size_t sidx = 0; sidx < m_succs.size(); ++sidx) {
@@ -920,6 +924,7 @@ namespace sbpl {
                 succ_state->h[0] += m_clearance_cells[sidx];
                 succ_state->h[1] += m_clearance_cells[sidx];
                 succ_state->h[2] += m_clearance_cells[sidx];
+                SMPL_INFO_STREAM("ADD CLEARANCE TO H: "<<m_clearance_cells[sidx]);
                 int new_cost = s->eg + cost;
                         SMPL_INFO_NAMED(SELOG, "Compare new cost %d vs old cost %d", new_cost, succ_state->g);
                 if (new_cost < succ_state->g) {
@@ -971,6 +976,7 @@ namespace sbpl {
                             m_open_r5m.push(succ_state,sbpl::motion::R5M);
                         }
                     } else if (!succ_state->incons) {
+                        SMPL_WARN_STREAM("INCONS SUCC");
                         m_incons.push_back(succ_state);
                     }
                 }
@@ -1056,9 +1062,9 @@ namespace sbpl {
 
             int h_r5m = m_heur->GetGoalHeuristic(state->state_id, sbpl::motion::GroupType::R5M,sbpl::motion::BaseGroupHeuristic::NONE);
 
-            state->h[0] = h_auv;
-            state->h[1] = (h_eca+h_r5m)/2;
-            state->h[2] = (h_eca+h_r5m)/2;
+            state->h[0] = h_auv;//  + (h_eca+h_r5m)/4 + (h_eca+h_r5m)/4;
+            state->h[1] = (2*h_eca/4 + 2*h_r5m/4);// + h_auv;
+            state->h[2] = (2*h_eca/4 + 2*h_r5m/4);// + h_auv;
 
             state->f[0] = state->f[1] = state->f[2] = INFINITECOST;
             state->eg = INFINITECOST;
